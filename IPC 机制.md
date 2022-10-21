@@ -328,5 +328,7 @@ Java Binder 是需要 Native Binder 支持的，最终的目的就是向 Binder 
 
 Java Binder 注册的服务不是本身，而是 JavaBBinder。
 
+总结：
+
 ![Binder 架构简图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Binder%20%E6%9E%B6%E6%9E%84%E7%AE%80%E5%9B%BE%E5%AE%8C%E6%95%B4.drawio.png)
 
