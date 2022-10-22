@@ -203,7 +203,7 @@
 
 ![LiveData 粘性事件](https://pic3.zhimg.com/80/v2-e2c9c2051b16fe7030a97f2d65420172_720w.webp)
 
-[LiveData粘性事件处理]([https://zhuanlan.zhihu.com/p/480324760)
+[LiveData粘性事件处理](https://zhuanlan.zhihu.com/p/480324760)
 
 ![LiveData 关联类 UML](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/LiveData%20%E5%85%B3%E8%81%94%E7%B1%BB%20UML.drawio.png)
 
