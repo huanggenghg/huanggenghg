@@ -11,3 +11,5 @@
 [输入系统和 IMS](https://github.com/huanggenghg/huanggenghg/blob/main/%E8%BE%93%E5%85%A5%E7%B3%BB%E7%BB%9F%E5%92%8C%20IMS.md)
 
 [IPC 机制](https://github.com/huanggenghg/huanggenghg/blob/main/IPC%20%E6%9C%BA%E5%88%B6.md)
+
+[Android Jetpack 架构组件](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20Jetpack%20%E6%9E%B6%E6%9E%84%E7%BB%84%E4%BB%B6.md)
