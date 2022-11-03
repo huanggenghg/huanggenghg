@@ -155,5 +155,71 @@ FutureTask 也可以用做闭锁。（FutureTask 实现了 Future 语义，表�
 
 > [Java线程池实现原理及其在美团业务中的实践](https://tech.meituan.com/2020/04/02/java-pooling-pratice-in-meituan.html)
 
+### 四、原子变量与非阻塞同步机制
+
+锁的劣势：高开销，volatile 无原子性，活跃性故障
+
+CAS：比较并交换指令。CAS的典型使用模式是：首先从V中读取值A，并根据A计算新值B，然后再通过CAS以原子方式将V中的值由A变成B（只要在这期间没有任何线程将V的值修改为其他值）。由于CAS能检测到来自其他线程的干扰，因此即使不使用锁也能够实现原子的读-改-写操作序列。CAS的性能会随着处理器数量的不同而变化很大。一个很管用的经验法则是：在大多数处理器上，在无竞争的锁获取和释放的“快速代码路径”上的开销，大约是CAS开销的两倍。
+
+原子变量类：原子变量类相当于一种泛化的volatile变量，能够支持原子的和有条件的读-改-写操作。共有12个原子变量类，可分为4组：标量类（Scalar）、更新器类、数组类以及复合变量类。最常用的原子变量就是标量类：AtomicInteger、AtomicLong、AtomicBoolean以及AtomicReference。所有这些类都支持CAS，此外，AtornicInteger和AtomicLong还支持算术运算。
+
+锁与原子变量性能比较：锁与原子变量在不同竞争程度上的性能差异很好地说明了各自的优势和劣势。在中低程度的竞争下，原子变量能提供更高的可伸缩性，而在高强度的竞争下，锁能够更有效地避免竞争。（在单CPU的系统上，基于CAS的算法在性能上同样会超过基于锁的算法，因为CAS在单CPU的系统上通常能执行成功，只有在偶然情况下，线程才会在执行读-改-写的操作过程中被其他线程抢占执行。）
+
+非阻塞算法：在非阻塞算法中通常不会出现死锁和优先级反转问题（但可能会出现饥饿和活锁问题，因为在算法中会反复地重试）。创建非阻塞算法的关键在于，**找出如何将原子修改的范围缩小到单个变量上，同时还要维护数据的一致性**。
+
+非阻塞链表：
+
+```java
+    public boolean offer(E e) {
+        checkNotNull(e);
+        final Node<E> newNode = new Node<E>(e);
+
+        for (Node<E> t = tail, p = t;;) {
+            Node<E> q = p.next;
+            if (q == null) {
+                // p is last node
+                if (p.casNext(null, newNode)) {
+                    // Successful CAS is the linearization point
+                    // for e to become an element of this queue,
+                    // and for newNode to become "live".
+                    if (p != t) // hop two nodes at a time
+                        casTail(t, newNode);  // Failure is OK.
+                    return true;
+                }
+                // Lost CAS race to another thread; re-read next
+            }
+            else if (p == q)
+                // We have fallen off list.  If tail is unchanged, it
+                // will also be off-list, in which case we need to
+                // jump to head, from which all live nodes are always
+                // reachable.  Else the new tail is a better bet.
+                p = (t != (t = tail)) ? t : head;
+            else
+                // Check for tail updates after two hops.
+                p = (p != t && t != (t = tail)) ? t : q;
+        }
+    }
+```
+
+ABA 问题：在某些算法中，如果V的值首先由A变成B，再由B变成A，那么仍然被认为是发生了变化，并需要重新执行算法中的某些步骤。那么还有一个相对简单的解决方案：不是更新某个引用的值，而是更新两个值，包括一个引用和一个版本号。即使这个值由A变为B，然后又变为A，版本号也将是不同的。
+
+### 五、Java 内存模型
+
+为何需要内存模型：线程正确读取到变量。（在编译器中生成的指令顺序，可以与源代码中的顺序不同，此外编译器还会把变量保存在寄存器而不是内存中；处理器可以采用乱序或并行等方式来执行指令；缓存可能会改变将写入变量提交到主内存的次序；而且，保存在处理器本地缓存中的值，对于其他处理器是不可见的。这些因素都会使得一个线程无法看到变量的最新值，并且会导致其他线程中的内存操作似乎在乱序执行——如果没有使用正确的同步。）
+
+Java内存模型是通过各种操作来定义的，包括对变量的读/写操作，监视器的加锁和释放操作，以及线程的启动和合并操作。
+
+Happens-Before的规则（**如果两个操作之间缺乏Happens-Before关系，那么JVM可以对它们任意地重排序。**）：
+
+ - 程序顺序规则。如果程序中操作A在操作B之前，那么在线程中A操作将在B操作之前执行。
+ - 监视器锁规则。在监视器锁上的解锁操作必须在同一个监视器锁上的加锁操作之前执行。
+ - volatile变量规则。对volatile变量的写入操作必须在对该变量的读操作之前执行。
+ - 线程启动规则。在线程上对Thread.Start的调用必须在该线程中执行任何操作之前执行。
+ - 线程结束规则。线程中的任何操作都必须在其他线程检测到该线程已经结束之前执行，或者从Thread.join中成功返回，或者在调用Thread.isAlive时返回false。
+ - 中断规则。当一个线程在另一个线程上调用interrupt时，必须在被中断线程检测到interrupt调用之前执行（通过抛出InterruptedException，或者调用isInterrupted和interrupted）。
+ - 终结器规则。对象的构造函数必须在启动该对象的终结器之前执行完成。
+ - 传递性。如果操作A在操作B之前执行，并且操作B在操作C之前执行，那么操作A必须在操作C之前执行。
+
+ Java内存模型说明了某个线程的内存操作在哪些情况下对于其他线程是可见的。其中包括确保这些操作是按照一种Happens-Before的偏序关系进行排序，而这种关系是基于内存操作和同步操作等级别来定义的。如果缺少充足的同步，那么当线程访问共享数据时，会发生一些非常奇怪的问题。
 
 
