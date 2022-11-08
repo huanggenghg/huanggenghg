@@ -50,7 +50,10 @@ cacheSize
 而 LinkedHashMap 内部，是由 HashMap 及一个双向链表实现的，在每次访问到元素之后，对双向链表进行维护，也就是最近最少算法的实现，主要实现是 LinkedHashMap 重写了`newNode`、插入、移除、访问元素的方法回调。
 
 ```java
-	Node<K,V> newNode(int hash, K key, V value, Node<K,V> e) { ... }
+    Node<K,V> newNode(int hash, K key, V value, Node<K,V> e) { }
+    Node<K,V> replacementNode(Node<K,V> p, Node<K,V> next) { }
+    TreeNode<K,V> newTreeNode(int hash, K key, V value, Node<K,V> next) { }
+    TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) { }
 
 	// Callbacks to allow LinkedHashMap post-actions
     void afterNodeAccess(Node<K,V> p) { }
@@ -61,6 +64,7 @@ cacheSize
 故最近最少使用算法，主要逻辑是在这些回调，即插入、移除、访问元素之后进行的，进行链表的维护。
 
 ```java
+    // 一些关于红黑树树节点的处理，同样的是进行双链表节点的更新，详情可自行查看源码
     Node<K,V> newNode(int hash, K key, V value, Node<K,V> e) {
         LinkedHashMapEntry<K,V> p =
             new LinkedHashMapEntry<K,V>(hash, key, value, e);
