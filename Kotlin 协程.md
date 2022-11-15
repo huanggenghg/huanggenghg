@@ -399,3 +399,25 @@ final class runable/SuspendKt$main$1 extends kotlin/coroutines/jvm/internal/Susp
 ##### 协程的创建和启动流程分析
 
 启动方式：`runBlocking{}`、`launch{}`、`async{}`、`withContext()`等等。
+
+启动协程有多种方式，通过runBlocking {}或者CoroutineScope作用域的扩展launch{}创建最外层协程，或者通过扩展async {}创建并发子协程、通过withContext()创建子协程等等，不管是在非挂起作用域创建外层协程还是创建子协程，其实步骤都是差不多的。
+
+**创建外层协程时根据作用域的上下文对象构建一个协程对象，然后根据启动模式启动协程；而创建子协程时则是将父协程的实例当作作用域，然后重复这个步骤。**
+
+- 使用协程作用域CoroutineScope的扩展函数launch()创建一个协程对象coroutine(AbstractCoroutine的子类对象)，并将作用域的上下文+参数上下文+调度器(拦截器)组合成一个新的上下文对象传递给协程构造函数，绑定作用域上下文中的Job和协程对象的父子关系以传递取消功能，最后调用协程的start()启动协程。
+- AbstractCoroutine.start()函数将启动协程的任务交给了启动模式CoroutineStart的调用操作符重载函数invoke()，根据不同的启动模式启动协程，默认启动模式DEFAULT会立即执行启动。
+- 将协程对象传递给SuspendLambda匿名子类的create()函数创建原始续体对象，这是对协程对象的包装。
+- 然后从上下文对象中获取拦截器(通常是一个协程调度器对象)并调用其interceptContinuation()拦截原始续体对象将其包装成DispatchedContinuation类型的续体，这个代理续体维护了调度器dispatcher和原始续体continuation对象。
+- 将代理续体对象当作Runnable扔进调度器dispatcher维护的线程池中完成线程切换，run()方法中调用原始续体的resumeWith()从而触发SuspendLambda的invokeSuspend()开始执行协程代码块。
+
+![协程启动流程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E5%8D%8F%E7%A8%8B%E7%9A%84%E5%90%AF%E5%8A%A8%E3%80%81%E6%89%A7%E8%A1%8C%E6%B5%81%E7%A8%8B.drawio.png)
+
+总结：
+`AbstractCoroutine`表示协程的抽象类，其子类对象就是协程对象；`SuspendLambda`更倾向将其看作协程，因为`SuspendLambda`的子类对象控制了协程代码块和其执行顺序。他们都可看做协程，但都不是完整的协程，协程其实有 3 层包装：
+
+- 第一层就是`launch`和`async`返回的`Job`、`Deferred`，里面封装了协程状态，提供了取消协程接口，而它们的实例都是继承自`AbstractCoroutine`，`AbstractCoroutine`就是协程的第一层包装；
+- 第二层包装是编译器生成的`SuspendLambda`的子类，封装了协程执行的代码和执行逻辑，`SuspendLambda`又继承自`BaseContinuationImpl`，其`completion`属性就是协程的第一层包装；
+- 第三层包装是协程的线程调度器`DispatchedContinuation`，封装了线程调度逻辑，并持有协程的第二层包装对象。
+
+三层包装都实现了`Continuation`接口，通过装饰模式组合在一起，每层负责不同的功能，其实这里也可以说是代理模式，因为装饰模式和代理模式的共同点是外层持有内层的引用。但是说是装饰模式更加合适，因为不同的层负责不同的功能，可以看作是对原始协程对象的功能增强。
+
