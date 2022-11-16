@@ -163,7 +163,7 @@ GlobalScope.launch {
 
 协程代码块中必须调用挂起函数才能使cancel()函数取消成功。对父级Job的cancel()调用会导致其所有子Job递归地立即取消，调用子Job的cancel()不会影响父Job和它的兄弟Job。
 
-##### suspend 挂起函数，挂起和恢复的实现原理
+#### suspend 挂起函数，挂起和恢复的实现原理
 
 不阻塞当前线程就是**挂起**，它指的是当协程中调用挂起函数时会记录当前的状态并挂起(暂停)协程的执行（释放当前线程），以达到非阻塞等待异步计算结果的目的。说白了就是不阻塞协程代码块所在的线程但暂停挂起点之后的代码执行，当挂起函数执行完毕再恢复挂起点后的代码执行。（**异步**）
 
@@ -396,7 +396,7 @@ final class runable/SuspendKt$main$1 extends kotlin/coroutines/jvm/internal/Susp
 
 ![SuspendLambda 内部状态机](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/109ceba032ae4363b5bd144b3f1c6e8d~tplv-k3u1fbpfcp-zoom-in-crop-mark:4536:0:0:0.image)
 
-##### 协程的创建和启动流程分析
+#### 协程的创建和启动流程分析
 
 启动方式：`runBlocking{}`、`launch{}`、`async{}`、`withContext()`等等。
 
@@ -421,3 +421,183 @@ final class runable/SuspendKt$main$1 extends kotlin/coroutines/jvm/internal/Susp
 
 三层包装都实现了`Continuation`接口，通过装饰模式组合在一起，每层负责不同的功能，其实这里也可以说是代理模式，因为装饰模式和代理模式的共同点是外层持有内层的引用。但是说是装饰模式更加合适，因为不同的层负责不同的功能，可以看作是对原始协程对象的功能增强。
 
+#### 协程异常传播取消和异常处理机制
+
+`resumeWithException()`：
+- 续体对象会被包装为`DispatchedContinuatoin`类型的调度器续体对象，它的`resume`系列函数将成功结果或异常封装为一个 Result 对象，然后`result`通过调度器切换到协程所在的线程（主线程）传递给`SuspendLambda.invokeSuspend(result)`函数
+- `SuspendLambda.invokeSuspend()`中检测`result`是如果是异常类型则通过`throw`关键字将异常抛出。
+
+协程代码块中之所以能直接捕获在异步挂起函数中"抛出"的异常，是因为**协程中通过调度器将子线程的异常对象切换到了协程所在线程，然后在协程代码块中throw抛出。如果我们在挂起函数的子线程中直接通过throw抛出异常，协程代码块中的try并不能捕获到，协程隐藏了线程切换的实现细节，让我们直接可以在协程代码块中捕获挂起函数中通过resume恢复的异常，从而将异步异常"变为"同步异常。**
+
+在编写挂起函数时永远不要使用throw(只能在协程所调度的线程捕获到)，当需要抛出异常时必须调用续体的resumeWithException(e)，否则会导致协程被永远的挂起。
+
+当一个协程抛出未捕获的异常时，会取消自己及其所有子协程。**如果子协程抛出了未捕获的非`CancellationException`类型的异常（`CancellationException`类型的异常会被父协程忽略），这个异常对象会被传递到根协程处理，并会取消协程及所有其他子级**
+
+**协程异常传递**
+
+`BaseContinuationImpl.resumeWith()中try住异常对象exception -> AbstractCoroutine.resumeWith(Result.failure(exception)) -> JobSupport.makeCompletingOnce(result.toState()) ->JobSupport.tryMakeCompleting(state, proposedUpdate)-> JobSupport.tryMakeCompletingSlowPath(state, proposedUpdate)`：
+
+```kotlin
+//kotlinx.coroutines.JobSupport
+private fun tryMakeCompletingSlowPath(state: Incomplete, proposedUpdate: Any?): Any? {
+    ...
+    //根据state获取到异常对象，这个异常对象就是最初BaseContinuationImpl.resumeWith()中传递过来的
+    var notifyRootCause: Throwable? = ...
+    //★ 1. 当异常对象不为空时，触发协程cancel取消，但并不会立马将当前协程状态置为canceled，需要等待该协程下所有子协程都取消完毕后才会修改当前协程状态为已取消
+    notifyRootCause?.let { notifyCancelling(list, it) }
+    val child = firstChild(state)
+    // ★★★ 6. 等待所有子协程完成或者取消
+    if (child != null && tryWaitForChild(finishing, child, proposedUpdate))
+    return COMPLETING_WAITING_CHILDREN
+    return finalizeFinishingState(finishing, proposedUpdate)
+}
+```
+
+当异常对象被传递给协程后，会触发`notifyCancelling()`函数取消当前协程，而`notifyCancelling()`中做了两件事。首先调用`notifyHandlers()`遍历子协程节点取消子协程，然后调用`cancelParent()`取消父协程。
+
+![异常取消传递情况](https://img-blog.csdnimg.cn/20210523203428597.jpg?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3UwMTAxNjM0NDI=,size_16,color_FFFFFF,t_70#pic_center)
+
+```kotlin
+//等待所有子协程完成或者取消 
+private tailrec fun tryWaitForChild(state: Finishing, child: ChildHandleNode, proposedUpdate: Any?): Boolean {
+     val handle = child.childJob.invokeOnCompletion(
+         invokeImmediately = false,
+         //★ 7. 调用ChildCompletion()传入this表示父协程，child表示父协程的某一个子协程，这个方法确保child的所有子协程都完成或者取消，意思就是确保child这个子树分支都已经完成或者取消
+         handler = ChildCompletion(this, state, child, proposedUpdate).asHandler
+     )
+     //如果这个子协程树未完成或者未取消，就返回（等待其完成）
+     if (handle !== NonDisposableHandle) return true 
+     //★ 8. 如果这个子协程树已经完成或者取消，则获取获取下一个子协程(遍历所有子协程)，递归调用tryWaitForChild()，直到发现有一个子协程还没有完成或者取消
+     val nextChild = child.nextChild() ?: return false
+     return tryWaitForChild(state, nextChild, proposedUpdate)
+ }
+```
+
+以上代码是异常的取消传播：
+
+- 获取当前协程的第一个子协程 child，调用`ChildCompletion()`确保这个子协程及其下的孙子协程都被取消；
+- 然后通过`child.nextChild()`获取下一个子协程，递归调用`tryWaitForChild()`确保当前协程下的所有子协程树都被取消。
+
+协程异常传递和处理机制：
+
+```kotlin
+private fun finalizeFinishingState(state: JobSupport.Finishing, proposedUpdate: Any?): Any? {
+    ...
+    assert { state.isCompleting } //★★★尝试：一致性检查--必须标记为已完成(canceled状态也是已完成)
+    
+    // proposedException就是未捕获的异常对象
+    val proposedException = (proposedUpdate as? CompletedExceptionally)?.cause
+    var wasCancelling = false
+    // 当协程的多个子协程因异常而失败时， 一般规则是“取第一个异常”，因此将处理第一个异常。 在第一个异常之后发生的所有其他异常都作为被抑制的异常绑定至第一个异常
+    val finalException = kotlinx.coroutines.internal.synchronized(state) { ... }
+    ...
+    // ★★★ 10. cancelParent(finalException) 取消父协程，这个过程上面已经分析过了，其实这里调用该方法并不是为了取消父协程，而是将异常对象交给父协程处理
+    // 如果该方法返回true，则表示这个异常对象被父协程处理掉了，如果返回false表示父协程没有处理这个异常，则会调用handleJobException()让当前协程处理该异常
+    if (finalException != null) {
+        val handled = cancelParent(finalException) || handleJobException(finalException)
+        if (handled) (finalState as CompletedExceptionally).makeHandled()
+    }
+    // 收尾工作设置协程状态为已完成、已取消 job.isCompleted == true  job.isCancelled == true
+    if (!wasCancelling) onCancelling(finalException)
+    onCompletionInternal(finalState)
+    ...
+    completeStateFinalization(state, finalState)
+    return finalState
+}
+```
+- 如果异常是CancellationException类型，cancelParent()会直接返回true，CancellationException类型的异常没有任何处理直接被忽略了；
+- 如果是非CancellationException异常，如果父协程是SupervisorJob类型，cancelParent()返回false，将调用handleJobException()由当前协程处理异常；
+- 如果是非是非CancellationException异常，并且协程树中不存在SupervisorJob类型，异常对象最终将由根协程处理。
+
+> 默认的handleJobException()函数对异常不做任何处理，只在StandaloneCoroutine和ActorCoroutine两个协程类重写了该函数并调用了handleCoroutineException()进一步处理异常，launch{}构建的协程是StandaloneCoroutine类型的，actor{}构建的协程是ActorCoroutine类型的。
+
+![协程异常传递和处理机制](https://img-blog.csdnimg.cn/20210523203436823.jpg?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3UwMTAxNjM0NDI=,size_16,color_FFFFFF,t_70#pic_center)
+
+总结：
+
+当挂起函数resumeWithException(e)或者协程代码块{}中throw了一个异常，这个异常会被捕获处理，并将异常传递给对应的协程对象，协程对象收到异常后会根据情况在协程树中传递取消相关协程（子传递父，父取消子）。如果异常类型为CancellationException类型，当传递取消父协程时，父协程直接返回true表示忽略（不会取消父协程），当父协程的job为SupervisorJob 类型时，不管是什么异常都会终止向上传递取消。
+
+异常对象最终会交给协程树中的某个协程处理：CancellationException类型的异常由抛出异常的协程自己处理；某一层协程对象Job为SupervisorJob 类型时由该层的下级子协程处理（抛异常的协程或者父协程，但是都是SupervisorJob层的子协程）；其他情况由根协程处理。
+
+#### 协程调度器实现原理
+
+协程的三层包装：
+
+![协程的三层包装](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E5%8D%8F%E7%A8%8B%E7%9A%84%E4%B8%89%E5%B1%82%E5%8C%85%E8%A3%85.drawio.png)
+
+在 kotlin 协程中，协程的执行涉及到 3 次线程切换：
+
+- 切换到指定线程执行协程代码块中的代码；
+- 当协程代码块调用异步挂起函数时，切换到指定线程执行挂起函数；
+- 当异步挂起函数执行完毕，将函数执行结果 Result 对象切换到协程所在的线程，继续执行协程代码块中剩下的代码。
+
+`ContinuationImpl$intercepted()`续体拦截器：将原始续体对象包装为另一种续体类型的对象，增强原续体的功能。
+
+`Dispatchers`调度器：
+
+![调度器相关类图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E7%BB%AD%E4%BD%93%E6%8B%A6%E6%88%AA%E5%99%A8.drawio.png)
+
+第一次调度：
+
+```kotlin
+@ExperimentalCoroutinesApi
+public actual fun CoroutineScope.newCoroutineContext(context: CoroutineContext): CoroutineContext {
+    val combined = coroutineContext + context
+    val debug = if (DEBUG) combined + CoroutineId(COROUTINE_ID.incrementAndGet()) else combined
+    return if (combined !== Dispatchers.Default && combined[ContinuationInterceptor] == null)
+        debug + Dispatchers.Default else debug // 保证上下文有调度器。
+}
+```
+![第一次调度](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E5%8D%8F%E7%A8%8B%E5%88%87%E6%8D%A2%E7%BA%BF%E7%A8%8B1.drawio.png)
+
+第二次调度：切换线程执行异步挂起函数
+
+a. new Thread 等直接切换线程
+
+b. `withContext(Dispatchers.IO){}`
+
+```kotlin
+public suspend fun <T> withContext(
+    context: CoroutineContext,       //协程上下文，一般情况下传递一个调度器
+    block: suspend CoroutineScope.() -> T   //子协程代码块
+): T {
+    ...
+    return suspendCoroutineUninterceptedOrReturn sc@ { uCont ->
+        val oldContext = uCont.context         //父协程的上下文
+        val newContext = oldContext + context  //父协程上下文+新的调度器
+        ...
+        if (newContext === oldContext) {
+            //新的上下文和父协程上下文地址相同，不需要切换线程，将创建一个ScopeCoroutine类型的子协程
+            val coroutine = ScopeCoroutine(newContext, uCont)
+            return@sc coroutine.startUndispatchedOrReturn(coroutine, block)
+        }
+        // 如果传入的调度器和父协程调度器相同，不需要切换线程，将创建一个UndispatchedCoroutine类型（ScopeCoroutine子类）的子协程
+        if (newContext[ContinuationInterceptor] == oldContext[ContinuationInterceptor]) {
+            val coroutine = UndispatchedCoroutine(newContext, uCont)
+            withCoroutineContext(newContext, null) {
+                return@sc coroutine.startUndispatchedOrReturn(coroutine, block)
+            }
+        }
+        //★上面两种不需要切换线程的就没必要跟踪了。当调度器不同时创建一个DispatchedCoroutine类型的子协程，切换到新线程执行子协程代码块（也就是函数体）
+        val coroutine = DispatchedCoroutine(newContext, uCont)
+        coroutine.initParentJob()
+        //★★★ 接2.1的startCoroutineCancellable()，创建子SuspendLambda续体对象，然后包装为DispatchedContinuation类型，最后dispatcher.dispatch()切换到新线程开始执行函数体
+        block.startCoroutineCancellable(coroutine, coroutine)   
+        coroutine.getResult()
+    }
+}
+```
+
+第三次调度：异步挂起函数执行完毕后将函数执行结果切回协程所在线程并恢复执行。
+
+a. 线程池或 Thread 的方式执行之后，会调用续体`continuation`的`resumeWith`，也就是`DispatchedContinuation`的`resumeWith()`，对应判断是否需要切换线程，需要则进行切换。
+
+b. 协程代码块的代码会通过状态机被分为多个执行部分放入的SuspendLambda.invokeSuspend()函数中，invokeSuspend()又是在子协程的续体BaseContinuationImpl.resumeWith()中调用的，所以子协程代码块的返回值为最后一次调用invokeSuspend()函数的返回值，在BaseContinuationImpl.resumeWith()函数中这个返回值将被传递给子协程的AbstractCoroutine.resumeWith()函数作为子协程的返回值。
+**withContext()创建的子协程DispatchedCoroutine会将父协程的续体的intercepted()函数再次包装为DispatchedContinuation类型，然后调用resumeCancellableWith()切换线程，将挂起函数的结果返回并恢复父协程执行**。
+
+> kotlin 协程库 4 种调度器：
+>
+> - Dispatchers.Main：在带有UI模块的系统中，表示在**UI线程调度**；
+> - Dispatchers.Default：通常情况下会采用CoroutineScheduler类型的线程池，这个线程池使用特殊的**任务抢占式**的Worker类型的线程，避免线程切换造成CPU资源消耗。但是如果设置了系统属性kotlinx.coroutines.scheduler的值为off时，将采用java的ForkJoinPool线程池，它是一种任务拆分式线程池，可以将一个大任务拆分为多个小任务后给多个线程并发执行，然后汇总结果，从而提高了CPU利用率；
+> - Dispatchers.IO：它和Dispatchers.Default一样采用的是CoroutineScheduler任务抢夺式线程池，区别是在往线程池扔任务之前多了一个队列，用于控制最大并发任务数量；
+> - Dispatchers.Unconfined：无限制的，**在任何情况下都不需要切换线程，直接在当前线程执行**，如果异步挂起函数执行完毕后恢复协程执行，协程将沿用挂起函数的线程上执行。
