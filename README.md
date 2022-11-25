@@ -27,3 +27,5 @@
 [Android 负一屏](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E8%B4%9F%E4%B8%80%E5%B1%8F.md)
 
 [算法小抄 读书笔记](https://github.com/huanggenghg/huanggenghg/blob/main/%E7%AE%97%E6%B3%95%E5%B0%8F%E6%8A%84%20%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0.md)
+
+[依赖注入](https://github.com/huanggenghg/huanggenghg/blob/main/%E4%BE%9D%E8%B5%96%E6%B3%A8%E5%85%A5.md)
