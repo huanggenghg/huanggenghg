@@ -14,6 +14,8 @@
 
 [Android Jetpack 架构组件](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20Jetpack%20%E6%9E%B6%E6%9E%84%E7%BB%84%E4%BB%B6.md)
 
+[LiveDataBus](https://github.com/huanggenghg/huanggenghg/blob/main/LiveDataBus.md)
+
 [Java 并发编程实战 读书笔记](https://github.com/huanggenghg/huanggenghg/blob/main/Java%20%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B%E5%AE%9E%E6%88%98%20%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0.md)
 
 [深入理解 Java 虚拟机 读书笔记](https://github.com/huanggenghg/huanggenghg/blob/main/%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Java%20%E8%99%9A%E6%8B%9F%E6%9C%BA%20%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0.md)
