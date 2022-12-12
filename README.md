@@ -31,3 +31,5 @@
 [算法小抄 读书笔记](https://github.com/huanggenghg/huanggenghg/blob/main/%E7%AE%97%E6%B3%95%E5%B0%8F%E6%8A%84%20%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0.md)
 
 [依赖注入](https://github.com/huanggenghg/huanggenghg/blob/main/%E4%BE%9D%E8%B5%96%E6%B3%A8%E5%85%A5.md)
+
+[Android 开发艺术探索 读书笔记](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E5%BC%80%E5%8F%91%E8%89%BA%E6%9C%AF%E6%8E%A2%E7%B4%A2%20%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0.md)
