@@ -493,4 +493,4 @@ status_t HWComposer::presentAndGetReleaseFences(DisplayId displayId) {
 
 ![img](https://upload-images.jianshu.io/upload_images/26874665-de3c24e8d262fed8.png?imageMogr2/auto-orient/strip|imageView2/2/format/webp)
 
-[Android 卡顿掉帧问题分析之原理篇](https://www.jianshu.com/p/386bbb5fa29a)
+*以上摘录自[Android 卡顿掉帧问题分析之原理篇](https://www.jianshu.com/p/386bbb5fa29a)*
