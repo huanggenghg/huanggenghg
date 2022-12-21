@@ -35,3 +35,5 @@
 [Android 开发艺术探索 读书笔记](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E5%BC%80%E5%8F%91%E8%89%BA%E6%9C%AF%E6%8E%A2%E7%B4%A2%20%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0.md)
 
 [Android 卡顿问题](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E5%8D%A1%E9%A1%BF%E9%97%AE%E9%A2%98.md)
+
+[LeakCanary 原理](https://github.com/huanggenghg/huanggenghg/blob/main/LeakCanary%20%E5%8E%9F%E7%90%86.md)
