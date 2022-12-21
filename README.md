@@ -37,3 +37,5 @@
 [Android 卡顿问题](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E5%8D%A1%E9%A1%BF%E9%97%AE%E9%A2%98.md)
 
 [LeakCanary 原理](https://github.com/huanggenghg/huanggenghg/blob/main/LeakCanary%20%E5%8E%9F%E7%90%86.md)
+
+[Kotlin 与 Java 区别](https://github.com/huanggenghg/huanggenghg/blob/main/Kotlin%20%E4%B8%8E%20Java%20%E5%8C%BA%E5%88%AB.md)
