@@ -131,9 +131,9 @@ if(caller != null) { // caller 指向的是 Launcher 所在的应用程序进程
 
 IApplicationThread，它的实现是ActivityThread 的内部类ApplicationThread，其中ApplicationThread继承了IApplicationThread.Stub。app指的是传入的要启动的Activity所在的应用程序进程，因此，这段代码指的就是要在目标应用程序进程启动Activity。当前代码逻辑运行在AMS 所在的进程（SystemServer 进程）中，通过ApplicationThread来与应用程序进程进行Binder通信，换句话说，**ApplicationThread是AMS所在进程（SystemServer进程）和应用程序进程的通信桥梁**。
 
-![AMS 与应用程序进程通信]()
+![AMS 与应用程序进程通信](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/AMS%20%E4%B8%8E%E5%BA%94%E7%94%A8%E8%BF%9B%E7%A8%8B%E9%80%9A%E4%BF%A1.png)
 
-![ActivityThrad 启动 Activity 的过程]()
+![ActivityThrad 启动 Activity 的过程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/ActivityThread%20%E5%90%AF%E5%8A%A8%20Activity%20%E7%9A%84%E8%BF%87%E7%A8%8B.png)
 
 scheduleLaunchActivity方法将启动Activity的参数封装成ActivityClientRecord，sendMessage方法向H类发送类型为LAUNCH_ACTIVITY的消息，并将ActivityClientRecord传递过去。
 
@@ -148,17 +148,17 @@ scheduleLaunchActivity方法将启动Activity的参数封装成ActivityClientRec
 7. 用Activity的attach方法初始化Activity，在attach方法中会创建Window对象（PhoneWindow）并与Activity自身进行关联
 8. Instrumentation的callActivityOnCreate方法来启动Activity。
 
-![根Activity启动过程中涉及的进程之间的关系]()
+![根Activity启动过程中涉及的进程之间的关系](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E6%A0%B9Activity%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E4%B8%AD%E6%B6%89%E5%8F%8A%E7%9A%84%E8%BF%9B%E7%A8%8B%E4%B9%8B%E9%97%B4%E7%9A%84%E5%85%B3%E7%B3%BB.png)
 
-![根Activity启动过程中进程调用时序图]()
+![根Activity启动过程中进程调用时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E6%A0%B9Activity%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E4%B8%AD%E8%BF%9B%E7%A8%8B%E8%B0%83%E7%94%A8%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 #### 4.2 Service 的启动过程
 
 Activity 启动会创建上下文对象 appContentx，并传入Activity的attach方法中，将Activity与上下文对象appContext关联起来。
 
-![ContextImpl到AMS的调用过程]()
+![ContextImpl到AMS的调用过程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/ContextImpl%E5%88%B0AMS%E7%9A%84%E8%B0%83%E7%94%A8%E8%BF%87%E7%A8%8B.png)
 
-![ActivityThread启动Service的时序图]()
+![ActivityThread启动Service的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/ActivityThread%E5%90%AF%E5%8A%A8Service%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 `handleCreateService`:
 
@@ -172,7 +172,7 @@ Activity 启动会创建上下文对象 appContentx，并传入Activity的attach
 
 #### 4.3 Service 的绑定过程
 
-![bindService ContextImpl到AMS的调用过程]()
+![bindService ContextImpl到AMS的调用过程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/bindService%20ContextImpl%E5%88%B0AMS%E7%9A%84%E8%B0%83%E7%94%A8%E8%BF%87%E7%A8%8B.png)
 
 > - ServiceRecord：用于描述一个Service。
 > - ProcessRecord：一个进程的信息。
@@ -186,17 +186,17 @@ Activity 启动会创建上下文对象 appContentx，并传入Activity的attach
 3. 如果rebind的值为true就会调用Service的onRebind方法，这一点结合前文的bindServiceLocked方法的注释5处，得出的结论就是：如果当前应用程序进程第一个与Service进行绑定，并且Service已经调用过onUnBind方法，则会调用Service的onRebind方法。
 4. 未绑定的情况，实际上是调用AMS的publishService方法。
 
-![Service的绑定过程前半部分调用关系时序图]()
+![Service的绑定过程前半部分调用关系时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Service%E7%9A%84%E7%BB%91%E5%AE%9A%E8%BF%87%E7%A8%8B%E5%89%8D%E5%8D%8A%E9%83%A8%E5%88%86%E8%B0%83%E7%94%A8%E5%85%B3%E7%B3%BB%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 调用了ServiceConnection 类型的对象mConnection 的onServiceConnected方法，这样在客户端实现了ServiceConnection接口类的onServiceConnected方法就会被执行。
 
-![Service的绑定过程剩余部分的代码时序图]()
+![Service的绑定过程剩余部分的代码时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Service%E7%9A%84%E7%BB%91%E5%AE%9A%E8%BF%87%E7%A8%8B%E5%89%A9%E4%BD%99%E9%83%A8%E5%88%86%E7%9A%84%E4%BB%A3%E7%A0%81%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 #### 4.4 广播的注册、发送和接收过程
 
 广播的注册分为两种，分别是静态注册和动态注册，**静态注册在应用安装时由PackageManagerService来完成注册过程**。
 
-![广播的动态注册过程时序图]()
+![广播的动态注册过程时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E5%B9%BF%E6%92%AD%E7%9A%84%E5%8A%A8%E6%80%81%E6%B3%A8%E5%86%8C%E8%BF%87%E7%A8%8B%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 IIntentReceiver是一个Binder接口，用于广播的跨进程的通信，它在LoadedApk.ReceiverDispatcher.InnerReceiver中实现。
 
@@ -231,13 +231,13 @@ mReceiverResolver.addFilter(bf); // 将BroadcastFilter添加到IntentResolver类
 
 广播的发送和接收过程：
 
-![ContextImpl到AMS的调用过程的时序图]()
+![ContextImpl到AMS的调用过程的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/ContextImpl%E5%88%B0AMS%E7%9A%84%E8%B0%83%E7%94%A8%E8%BF%87%E7%A8%8B%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 AMS `verifyBroadcastLocked`验证广播是否合法。
 
 AMS `broadcastIntentLocked`前面的工作主要是将动态注册的广播接收者和静态注册的广播接收者按照优先级高低不同存储在不同的列表中，再将这两个列表合并到receivers列表中，这样receivers列表包含了所有的广播接收者（无序广播和有序广播）。接着调用BroadcastQueue的scheduleBroadcastsLocked方法。 
 
-![AMS到BroadcastReceiver的调用过程的时序图]()
+![AMS到BroadcastReceiver的调用过程的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/AMS%E5%88%B0BroadcastReceiver%E7%9A%84%E8%B0%83%E7%94%A8%E8%BF%87%E7%A8%8B%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 ```java
 static final class ReceiverDispatcher {
@@ -255,9 +255,9 @@ IIntentReceiver和IActivityManager 一样，都使用了AIDL来实现进程间�
 
 #### ContentProvider 的启动过程
 
-![query方法到AMS的调用过程的时序图]()
+![query方法到AMS的调用过程的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/query%E6%96%B9%E6%B3%95%E5%88%B0AMS%E7%9A%84%E8%B0%83%E7%94%A8%E8%BF%87%E7%A8%8B%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
-![AMS启动Content Provider的过程的时序图]()
+![AMS启动Content Provider的过程的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/AMS%E5%90%AF%E5%8A%A8Content%20Provider%E7%9A%84%E8%BF%87%E7%A8%8B%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 ### ch5 理解上下文 Context
 
@@ -265,13 +265,13 @@ IIntentReceiver和IActivityManager 一样，都使用了AIDL来实现进程间�
 
 Activity、Service和Application都间接地继承自Context，因此我们可以计算出一个应用程序进程中有多少个Context，这个数量等于Activity和Service的总个数加1，1指的是Application的数量。
 
-![Context 关联类]()
+![Context 关联类](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Context%20%E5%85%B3%E8%81%94%E7%B1%BB.png)
 
 ContextImpl 提供了很多功能，但是外界需要使用并拓展ContextImpl的功能，因此设计上使用了装饰模式，ContextWrapper是装饰类，它对ContextImpl进行包装，ContextWrapper主要是起了方法传递的作用，ContextWrapper中几乎所有的方法都是调用ContextImpl的相应方法来实现的。ContextThemeWrapper、Service和Application都继承自ContextWrapper，这样它们都可以通过mBase来使用Context的方法，同时它们也是装饰类，在ContextWrapper的基础上又添加了不同的功能。ContextThemeWrapper中包含和主题相关的方法（比如getTheme方法），因此，需要主题的Activity继承ContextThemeWrapper，而不需要主题的Service继承ContextWrapper。
 
 #### 5.2 Application Context 的创建过程
 
-![Application Context的创建过程的时序图]()
+![Application Context的创建过程的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Application%20Context%E7%9A%84%E5%88%9B%E5%BB%BA%E8%BF%87%E7%A8%8B%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 ```java
 //LoadedApk.java
@@ -297,7 +297,7 @@ public Context getApplicationContext() {
 
 ActivityThread是应用程序进程的主线程管理类，它的内部类ApplicationThread会调用scheduleLaunchActivity方法来启动Activity
 
-![Activity的Context创建过程的时序图]()
+![Activity的Context创建过程的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Activity%E7%9A%84Context%E5%88%9B%E5%BB%BA%E8%BF%87%E7%A8%8B%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 ```java
 //ActivityThread.java
@@ -323,7 +323,7 @@ private Activity performLaunchActivity(ActivityRecord r, Intent customIntent) {
 
 #### 6.1 AMS 家族
 
-![Android 7.0 AMS家族]()
+![Android 7.0 AMS家族](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Android%207.0%20AMS%E5%AE%B6%E6%97%8F.png)
 
 AMP就是AMS的代理类。其中IActivityManager是一个接口，AMN和AMP都实现了这个接口，用于实现代理模式和Binder通信。
 
@@ -331,7 +331,7 @@ AMP是AMN的内部类，它们都实现了IActivityManager接口，这样它们�
 
 Android 8.0 AMS, 采用的是AIDL，IActivityManager.java类是由AIDL工具在编译时自动生成的。要实现进程间通信，服务器端也就是AMS只需要继承IActivityManager.Stub类并实现相应的方法就可以了。采用AIDL后就不需要使用AMS的代理类AMP了，因此Android 8.0去掉了AMP，代替它的是IActivityManager，它是AMS在本地的代理。
 
-![Android 8.0 AMS家族]()
+![Android 8.0 AMS家族](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Android%208.0%20AMS%E5%AE%B6%E6%97%8F.png)
 
 #### 6.2 AMS 的启动过程
 
@@ -353,7 +353,7 @@ mSystemServiceManager.startService（ActivityManagerService.Lifecycle.class）.g
 
 #### 6.5 Activity 栈管理
 
-![Activity任务栈模型]()
+![Activity任务栈模型](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Activity%E4%BB%BB%E5%8A%A1%E6%A0%88%E6%A8%A1%E5%9E%8B.png)
 
 ActivityRecord 用来记录一个Activity 的所有信息，TaskRecord 中包含了一个或多个ActivityRecord，TaskRecord用来表示Activity的任务栈，用来管理栈中的ActivityRecord，ActivityStack又包含了一个或多个TaskRecord，它是TaskRecord的管理者。
 
@@ -365,9 +365,9 @@ taskAffinity与allowTaskReparenting配合。如果allowTaskReparenting为true，
 
 ### ch7 理解 WindowManager
 
-![Window、WindowManager和WMS的关系]()
+![Window、WindowManager和WMS的关系](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Window%E3%80%81WindowManager%E5%92%8CWMS%E7%9A%84%E5%85%B3%E7%B3%BB.png)
 
-![WindowManager的关联类]()
+![WindowManager的关联类](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/WindowManager%E7%9A%84%E5%85%B3%E8%81%94%E7%B1%BB.png)
 
 Context的getSystemService方法得到的是WindowManagerImpl实例；WindowManagerImpl虽然是WindowManager的实现类，但是没有实现什么功能，而是将功能实现委托给了WindowManagerGlobal，这里用到的是桥接模式。
 
@@ -375,7 +375,7 @@ PhoneWindow继承自Window，Window通过setWindowManager方法与WindowManager�
 
 Window 的属性，它们分别是Type（Window的类型）、Flag（Window的标志）和SoftInputMode（软键盘相关模式）。
 
-![Window的操作]()
+![Window的操作](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Window%E7%9A%84%E6%93%8D%E4%BD%9C.png)
 
 WindowManagerGlobal中维护的和Window操作相关的3个列表，在窗口的添加、更新和删除过程中都会涉及这3个列表，它们分别是View 列表（ArrayList＜View＞ mViews）、布局参数列表（ArrayList＜WindowManager.LayoutParams＞mParams）和ViewRootImpl列表（ArrayList＜ViewRootImpl＞mRoots）
 
@@ -389,11 +389,11 @@ WindowManagerGlobal中维护的和Window操作相关的3个列表，在窗口的
 
 ViewRootImpl身负了很多职责，主要有以下几点：· View树的根并管理View树。· 触发View的测量、布局和绘制。· 输入事件的中转站。· 管理Surface。· 负责与WMS进行进程间通信。
 
-![ViewRootImpl与WMS通信]()
+![ViewRootImpl与WMS通信](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/ViewRootImpl%E4%B8%8EWMS%E9%80%9A%E4%BF%A1.png)
 
-在addToDisplay方法中调用了WMS的addWindow方法，并将自身也就是Session作为参数传了进去，每个应用程序进程都会对应一个Session，WMS会用ArrayList来保存这些Session，这就是为什么WMS包含Session的原因。这样剩下的工作就交给WMS来处理，在WMS中会为这个添加的窗口分配Surface，并确定窗口显示次序，可见负责显示界面的是画布Surface，而不是窗口本身。WMS 会将它所管理的Surface 交由SurfaceFlinger处理，SurfaceFlinger会将这些Surface混合并绘制到屏幕上。
+在addToDisplay方法中调用了WMS的addWindow方法，并将自身也就是Session作为参数传了进去，每个应用程序进程都会对应一个Session，WMS会用ArrayList来保存这些Session，这就是为什么WMS包含Session的原因。这样剩下的工作就交给WMS来处理，**在WMS中会为这个添加的窗口分配Surface，并确定窗口显示次序，可见负责显示界面的是画布Surface，而不是窗口本身。WMS 会将它所管理的Surface 交由SurfaceFlinger处理，SurfaceFlinger会将这些Surface混合并绘制到屏幕上**。
 
-![系统窗口StatusBar的添加过程的时序图]()
+![系统窗口StatusBar的添加过程的时序图](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E7%B3%BB%E7%BB%9F%E7%AA%97%E5%8F%A3StatusBar%E7%9A%84%E6%B7%BB%E5%8A%A0%E8%BF%87%E7%A8%8B%E7%9A%84%E6%97%B6%E5%BA%8F%E5%9B%BE.png)
 
 Activity 的添加过程：
 无论是哪种窗口，它的添加过程在WMS 处理部分中基本是类似的，只不过会在权限和窗口显示次序等方面会有些不同。
