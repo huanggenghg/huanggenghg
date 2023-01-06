@@ -1,0 +1,471 @@
+## Android 进阶解密 读书笔记
+
+### ch1 Android 系统架构
+
+应用层、应用框架层、系统运行层、硬件抽象层和 Linux 内核层。
+
+### ch2 Android 系统启动
+
+#### init 进程启动过程
+
+启动电源以及系统启动、引导程序 BootLoader、Linux 内核启动、init 进程启动。
+
+init 的`main`函数，在开始的时候创建和挂载启动所需的文件目录，解析 init.rc 文件，解析 Service 类型语句。
+
+init 启动 Zygote \ˈzaɪɡoʊt\ ，fork 创建子进程
+启动属性服务
+
+**总结**：
+1. 创建和挂载启动所需的文件目录
+2. 初始化和启动属性服务
+3. 解析 init.rc 配置文件并启动 Zygote 进程
+
+#### Zygote 进程启动过程
+
+在 Android 系统中，DVM(Dalvik 虚拟机) 和 ART、应用程序进程以及运行系统的关键服务的 SystemServer 进程都是由 Zygote 进程来创建的，我们也将它称为孵化器。它通过 fock（复制进程）的形式来创建应用程序进程和 SystemServer 进程， Zygote 进程的名称并不是叫“zygote”，而是叫“app_process”，这个名称是在 Android.mk 中定义的。
+
+Zygote 进程都是通过 fock 自身来创建子进程的，这样 Zygote 进程以及它的子进程都可以进入 app_main.cpp 的 main 函数。
+
+这里为何要使用JNI呢？因为ZygoteInit的main方法是由Java语言编写的，当前的运行逻辑在Native中，这就需要通过JNI来调用Java。这样Zygote就从Native层进入了Java框架层。Zygote开创了Java框架层。
+
+**ZygoteInit的main方法主要做了4件事**：
+1. 创建一个Server端的Socket。`registerZygoteSocket`，在 Zygote 进程将 SystemServer 进程启动后，就会在这个服务端的 Socket 上等待 AMS 请求 Zygote 进程来创建新的应用进程。
+2. 预加载类和资源。
+3. 启动SystemServer进程。调用Zygote的forkSystemServer方法，其内部会调用nativeForkSystemServer 这个Native 方法，nativeForkSystemServer方法最终会通过fork函数在当前进程创建一个子进程。
+4. 等待AMS请求创建新的应用程序进程。`runSelectLoop`，无限循环等待 AMS 请求。
+
+**总结**：
+1. 创建AppRuntime并调用其start方法，启动Zygote进程。
+2. 创建Java虚拟机并为Java虚拟机注册JNI方法。
+3. 通过JNI调用ZygoteInit的main函数进入Zygote的Java框架层。
+4. 通过registerZygoteSocket方法创建服务器端Socket，并通过runSelectLoop方法等待AMS的请求来创建新的应用程序进程。
+5. 启动SystemServer进程。
+
+#### SystemServer 处理过程
+
+SystemServer进程主要用于创建系统服务，我们熟知的AMS、WMS和PMS都是由它来创建的。
+
+**总结**
+SystemServer进程被创建后，主要做了如下工作：
+1. 启动Binder线程池，这样就可以与其他进程进行通信。（Native 调用启动 Binder 线程池）
+2. 创建SystemServiceManager，其用于对系统的服务进行创建、启动和生命周期管理。
+3. 启动各种系统服务。（引导服务、核心服务、其他服务）
+
+#### Launcher 启动过程
+
+概述：
+系统启动的最后一步是启动一个应用程序用来显示系统中已经安装的应用程序，这个应用程序就叫作Launcher。Launcher在启动过程中会请求PackageManagerService返回系统中已经安装的应用程序的信息，并将这些信息封装成一个快捷图标列表显示在系统屏幕上，这样用户可以通过点击这些快捷图标来启动相应的应用程序。
+
+1. 作为Android系统的启动器，用于启动应用程序。
+2. 作为Android系统的桌面，用于显示和管理应用程序的快捷图标或者其他桌面组件。
+
+Launcher的AndroidManifest文件中的intent-filter标签匹配了Action为Intent.ACTION_MAIN，Category为Intent.CATEGORY_HOME。
+
+Launcher 中应用图标显示过程：
+Launcher 是用工作区的形式来显示系统安装的应用程序的快捷图标的，每一个工作区都是用来描述一个抽象桌面的，它由n个屏幕组成，每个屏幕又分为n个单元格，每个单元格用来显示一个应用程序的快捷图标。
+
+#### Android 系统启动流程
+
+![Android 系统启动流程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/c63cc8745f08441bb9b7e30bb13c9d750167f7cc/res/Android%20%E7%B3%BB%E7%BB%9F%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B.png)
+
+### 应用程序进程启动过程
+
+要想启动一个应用程序，首先要保证这个应用程序所需要的应用程序进程已经启动。AMS在启动应用程序时会检查这个应用程序需要的应用程序进程是否存在，不存在就会请求Zygote进程启动需要的应用程序进程。在2.2节中，我们知道在Zygote的Java框架层中会创建一个Server端的Socket，这个Socket用来等待AMS请求Zygote来创建新的应用程序进程。Zygote进程通过fock自身创建应用程序进程，这样应用程序进程就会获得Zygote进程在启动时创建的虚拟机实例。当然，在应用程序进程创建过程中除了获取虚拟机实例外，还创建了Binder线程池和消息循环，这样运行在应用进程中的应用程序就可以方便地使用Binder进行进程间通信以及处理消息了。
+
+AMS 发送启动应用进程请求：
+![AMS 发送启动应用进程请求](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/AMS%20%E5%90%AF%E5%8A%A8%E5%BA%94%E7%94%A8%E8%BF%9B%E7%A8%8B.png)
+
+Zygote 接收请求并创建应用程序进程
+![Zygote 接收请求并创建应用程序进程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Zygote%E6%8E%A5%E6%94%B6%E8%AF%B7%E6%B1%82%E5%88%9B%E5%BB%BA%E5%BA%94%E7%94%A8%E8%BF%9B%E7%A8%8B.png)
+
+通过registerZygoteSocket方法创建了一个Server端的Socket，这个name 为“zygote”的Socket用来等待AMS请求Zygote，以创建新的应用程序进程；`preload(bootTimingTraceLog)`预加载类和资源；启动SystemServer进程，这样系统的服务也会由SystemServer进程启动起来；调用ZygoteServer的runSelectLoop方法来等待AMS请求创建新的应用程序进程。
+
+`throw new Zygote.MethodAndArgsCaller(m, argv)`，这种抛出异常的处理会清除所有的设置过程需要的堆栈帧，并让ActivityThread的main方法看起来像是应用程序进程的入口方法。
+
+#### Binder 线程池启动过程
+
+Binder线程为一个PoolThread。PoolThread类继承了Thread类。调用IPCThreadState的joinThreadPool函数，将当前线程注册到Binder驱动程序中，这样我们创建的线程就加入了Binder线程池中，新创建的应用程序进程就支持Binder进程间通信了，我们只需要创建当前进程的Binder对象，并将它注册到ServiceManager中就可以实现Binder进程间通信，而不必关心进程间是如何通过Binder进行通信的。
+
+#### 消息循环创建过程
+
+```java
+Looper.prepareMainLooper();
+
+ActivityThreaed thread = new ActivityThread();
+
+sMainThreadHandler = thread.getHandler();
+
+Looper.loop();
+```
+
+### ch4 四大组件的工作过程
+
+#### 4.1 根 Activity 的启动过程
+
+![点击桌面图标](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E7%82%B9%E5%87%BB%E6%A1%8C%E9%9D%A2%E5%9B%BE%E6%A0%87.png)
+
+`intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);`
+调用Instrumentation的execStartActivity方法，Instrumentation 主要用来监控应用程序和系统的交互。
+
+execStartActivity方法最终调用的是AMS 的startActivity方法。
+
+![AMS 到 ApplicationThread 的调用过程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/AMS%20%E5%88%B0%20ApplicationThread%20%E7%9A%84%E8%B0%83%E7%94%A8%E8%BF%87%E7%A8%8B.png)
+
+在AMS的startActivity方法中返回了startActivityAsUser方法，可以发现startActivityAsUser方法比startActivity方法多了一个参数UserHandle.getCallingUserId（），这个方法会获得调用者的UserId，AMS根据这个UserId来确定调用者的权限。
+
+ActivityStarter是Android 7.0中新加入的类，它是加载Activity的控制类，会收集所有的逻辑来决定如何将Intent和Flags转换为Activity，并将Activity和Task以及Stack相关联。
+
+启动理由不能为空
+
+```java
+//...
+if(caller != null) { // caller 指向的是 Launcher 所在的应用程序进程的 ApplicationThread 对象
+	callerApp = mService.getRecordForAppLocked(caller); // 得到的是代表 Launcher 进程的 callerApp 对象，它是 ProcessRecord 类型，用于描述一个应用程序进程
+
+	//...
+	ActivityRecord r = new ActivityRecord(...); //ActivityRecord用于描述一个Activity，用来记录一个Activity 的所有信息。创建ActivityRecord，用于描述将要启动的Activity。
+}
+```
+
+启动根Activity时会将Intent的Flag设置为FLAG_ACTIVITY_NEW_TASK；接着执行setTaskFromReuseOrCreateNewTask方法，其内部会创建一个新的TaskRecord，用来描述一个Activity任务栈，也就是说setTaskFromReuseOrCreateNewTask方法内部会创建一个新的Activity任务栈。
+
+IApplicationThread，它的实现是ActivityThread 的内部类ApplicationThread，其中ApplicationThread继承了IApplicationThread.Stub。app指的是传入的要启动的Activity所在的应用程序进程，因此，这段代码指的就是要在目标应用程序进程启动Activity。当前代码逻辑运行在AMS 所在的进程（SystemServer 进程）中，通过ApplicationThread来与应用程序进程进行Binder通信，换句话说，**ApplicationThread是AMS所在进程（SystemServer进程）和应用程序进程的通信桥梁**。
+
+![AMS 与应用程序进程通信]()
+
+![ActivityThrad 启动 Activity 的过程]()
+
+scheduleLaunchActivity方法将启动Activity的参数封装成ActivityClientRecord，sendMessage方法向H类发送类型为LAUNCH_ACTIVITY的消息，并将ActivityClientRecord传递过去。
+
+查看H的handleMessage方法中对LAUNCH_ACTIVITY的处理，在注释1处将传过来的msg的成员变量obj转换为ActivityClientRecord。在注释2处通过getPackageInfoNoCheck方法获得LoadedApk类型的对象并赋值给ActivityClientRecord 的成员变量packageInfo。应用程序进程要启动Activity时需要将该Activity所属的APK加载进来，而LoadedApk就是用来描述已加载的APK文件的。
+
+1. 获取 ActivityInfo，用于存储代码以及AndroidManifes设置的Activity和Receiver节点信息，比如Activity的theme和launchMode。
+2. 获取APK文件的描述类LoadedAp
+3. 获取要启动的Activity的ComponentName类，在ComponentName 类中保存了该Activity的包名和类名
+4. 创建要启动Activity的上下文环境
+5. 根据ComponentName中存储的Activity类名，用类加载器来创建该Activity的实例
+6. 创建Application，makeApplication 方法内部会调用Application的onCreate方法
+7. 用Activity的attach方法初始化Activity，在attach方法中会创建Window对象（PhoneWindow）并与Activity自身进行关联
+8. Instrumentation的callActivityOnCreate方法来启动Activity。
+
+![根Activity启动过程中涉及的进程之间的关系]()
+
+![根Activity启动过程中进程调用时序图]()
+
+#### 4.2 Service 的启动过程
+
+Activity 启动会创建上下文对象 appContentx，并传入Activity的attach方法中，将Activity与上下文对象appContext关联起来。
+
+![ContextImpl到AMS的调用过程]()
+
+![ActivityThread启动Service的时序图]()
+
+`handleCreateService`:
+
+1. 获取要启动Service的应用程序的LoadedApk，LoadedApk是一个APK文件的描述类。
+2. 通过调用LoadedApk的getClassLoader方法来获取类加载器
+3. 根据CreateServiceData对象中存储的Service信息，创建Service实例
+4. 创建Service的上下文环境ContextImpl对象
+5. 通过Service的attach方法来初始化Service
+6. 调用Service的onCreate方法，这样Service就启动了
+7. 将启动的Service加入到ActivityThread的成员变量mServices中，其中mServices是ArrayMap类型
+
+#### 4.3 Service 的绑定过程
+
+![bindService ContextImpl到AMS的调用过程]()
+
+> - ServiceRecord：用于描述一个Service。
+> - ProcessRecord：一个进程的信息。
+> - ConnectionRecord：用于描述应用程序进程和Service建立的一次通信。
+> - AppBindRecord：应用程序进程通过Intent绑定Service时，会通过AppBindRecord来维护Service与应用程序进程之间的关联。其内部存储了谁绑定的Service （ProcessRecord）、被绑定的Service （AppBindRecord）、绑定Service的Intent （IntentBindRecord）和所有绑定通信记录的信息（ArraySet＜ConnectionRecord＞）。
+> - IntentBindRecord：用于描述绑定Service的Intent。
+
+`handleBindService`:
+1. 获取要绑定的Service。
+2. BindServiceData的成员变量rebind的值为false，这样会调用Service的onBind方法，到这里Service处于绑定状态了。
+3. 如果rebind的值为true就会调用Service的onRebind方法，这一点结合前文的bindServiceLocked方法的注释5处，得出的结论就是：如果当前应用程序进程第一个与Service进行绑定，并且Service已经调用过onUnBind方法，则会调用Service的onRebind方法。
+4. 未绑定的情况，实际上是调用AMS的publishService方法。
+
+![Service的绑定过程前半部分调用关系时序图]()
+
+调用了ServiceConnection 类型的对象mConnection 的onServiceConnected方法，这样在客户端实现了ServiceConnection接口类的onServiceConnected方法就会被执行。
+
+![Service的绑定过程剩余部分的代码时序图]()
+
+#### 4.4 广播的注册、发送和接收过程
+
+广播的注册分为两种，分别是静态注册和动态注册，**静态注册在应用安装时由PackageManagerService来完成注册过程**。
+
+![广播的动态注册过程时序图]()
+
+IIntentReceiver是一个Binder接口，用于广播的跨进程的通信，它在LoadedApk.ReceiverDispatcher.InnerReceiver中实现。
+
+最终会调用AMS的registerReceiver方法，并将IIntentReceiver类型的rd传进去，这里之所以不直接传入BroadcastReceiver而是传入IIntentReceiver，是因为注册广播是一个跨进程过程，需要具有跨进程的通信功能的IIntentReceiver。
+
+```java
+// ActivityManagerService.java #registerReceiver
+//...
+callerApp = getRecordForAppLocked(caller);// 1.用于描述请求 AMS 注册广播接收者的 Activity 所在的应用程序进程
+//...
+Iterator<String> actoins = filter.actioinsInterator();// 2.根据actions列表和userIds（userIds可以理解为应用程序的uid）得到所有的粘性广播的intent
+//...
+stickyIntents.addAll(intents);// 3.传入到stickyIntents中。接下来从stickyIntents中找到匹配传入的参数filter的粘性广播的intent
+
+//...
+allSticky.add(intent); //4. 将这些intent存入到allSticky列表中，从这里可以看出**粘性广播是存储在AMS中的**。
+```
+
+```java
+// ActivityManagerService.java #registerReceiver
+//...
+ReceiverList rl = mRegisteredReceivers.get(reveiver.asBinder()); // 1.
+//...
+BroadcastFilter bf = new BroadcastFilter(filter, rl, callerPackage, permission, callingUid, userId); // BroadcastFilter用来描述注册的广播接收者
+
+//...
+rl.add(bf); // 将自身添加到ReceiverList中
+
+//...
+mReceiverResolver.addFilter(bf); // 将BroadcastFilter添加到IntentResolver类型的mReceiverResolver中，这样当AMS接收到广播时就可以从mReceiverResolver中找到对应的广播接收者了，从而达到了注册广播的目的。
+```
+
+广播的发送和接收过程：
+
+![ContextImpl到AMS的调用过程的时序图]()
+
+AMS `verifyBroadcastLocked`验证广播是否合法。
+
+AMS `broadcastIntentLocked`前面的工作主要是将动态注册的广播接收者和静态注册的广播接收者按照优先级高低不同存储在不同的列表中，再将这两个列表合并到receivers列表中，这样receivers列表包含了所有的广播接收者（无序广播和有序广播）。接着调用BroadcastQueue的scheduleBroadcastsLocked方法。 
+
+![AMS到BroadcastReceiver的调用过程的时序图]()
+
+```java
+static final class ReceiverDispatcher {
+	findl static class InnerReceiver extends IIntentReceiver.Stub {
+		...
+		@Override
+		public void performReceive(Intent intent, ...) {
+
+		}
+	}
+}
+```
+
+IIntentReceiver和IActivityManager 一样，都使用了AIDL来实现进程间通信。InnerReceiver继承自IIntentReceiver.Stub，是Binder通信的服务器端，IIntentReceiver则是Binder 通信的客户端、InnerReceiver 在本地的代理，它的具体的实现就是InnerReceiver。
+
+#### ContentProvider 的启动过程
+
+![query方法到AMS的调用过程的时序图]()
+
+![AMS启动Content Provider的过程的时序图]()
+
+### ch5 理解上下文 Context
+
+#### 5.1 Context 的关联类
+
+Activity、Service和Application都间接地继承自Context，因此我们可以计算出一个应用程序进程中有多少个Context，这个数量等于Activity和Service的总个数加1，1指的是Application的数量。
+
+![Context 关联类]()
+
+ContextImpl 提供了很多功能，但是外界需要使用并拓展ContextImpl的功能，因此设计上使用了装饰模式，ContextWrapper是装饰类，它对ContextImpl进行包装，ContextWrapper主要是起了方法传递的作用，ContextWrapper中几乎所有的方法都是调用ContextImpl的相应方法来实现的。ContextThemeWrapper、Service和Application都继承自ContextWrapper，这样它们都可以通过mBase来使用Context的方法，同时它们也是装饰类，在ContextWrapper的基础上又添加了不同的功能。ContextThemeWrapper中包含和主题相关的方法（比如getTheme方法），因此，需要主题的Activity继承ContextThemeWrapper，而不需要主题的Service继承ContextWrapper。
+
+#### 5.2 Application Context 的创建过程
+
+![Application Context的创建过程的时序图]()
+
+```java
+//LoadedApk.java
+ContextImpl appContext = ContextImpl.createAppContext(mActivityThread, this);
+app = mActivityThread.mInstrumentation.newApplication(cl, appClass, appContext);
+appContext.setOuterContext(app);
+mApplication = app; // Application 类型
+```
+
+这个base一路传递过来指的是ContextImpl，它是Context的实现类，将ContextImpl赋值给ContextWrapper的Context类型的成员变量mBase，这样在ContextWrapper中就可以使用Context的方法，而Application继承自ContextWrapper，同样可以使用Context的方法。**Application的attach方法的作用就是使Application可以使用Context的方法，这样Application才可以用来代表Application Context**。
+
+#### 5.3 Application Context 的获取过程
+
+```java
+//ContextImpl.java
+@Override
+public Context getApplicationContext() {
+	return (mPackageInfo != null) ? mPackageInfo.getApplication() : mMainThraed.getApplicatioin();
+}
+```
+
+#### 5.4 Activity的Context创建过程
+
+ActivityThread是应用程序进程的主线程管理类，它的内部类ApplicationThread会调用scheduleLaunchActivity方法来启动Activity
+
+![Activity的Context创建过程的时序图]()
+
+```java
+//ActivityThread.java
+private Activity performLaunchActivity(ActivityRecord r, Intent customIntent) {
+	...
+	ContextImpl appContext = createBaseContextForActivity(r); // 创建Activity的ContextImpl
+	...
+	activity = mInstrumentation.newActivity(cl, component.getClassName(), r.intent);
+	...
+	appContext.setOuterContext(activity);
+	activity.attach(appContext, ...);
+
+}
+```
+
+总结一下，在启动Activity的过程中创建ContextImpl，并赋值给ContextWrapper的成员变量mBase。Activity继承自ContextWrapper的子类ContextThemeWrapper，这样在Activity中就可以使用Context中定义的方法了。
+
+#### 5.5 Service的Context创建过程
+
+时序图可参考 Activity 的 Context 的创建过程
+
+### ch6 理解 ActivityManagerService
+
+#### 6.1 AMS 家族
+
+![Android 7.0 AMS家族]()
+
+AMP就是AMS的代理类。其中IActivityManager是一个接口，AMN和AMP都实现了这个接口，用于实现代理模式和Binder通信。
+
+AMP是AMN的内部类，它们都实现了IActivityManager接口，这样它们就可以实现代理模式，具体来讲是远程代理：AMP和AMN是运行在两个进程中的，AMP是Client端，AMN则是Server端，而Server端中具体的功能都是由AMN的子类AMS来实现的，因此，AMP就是AMS在Client端的代理类。AMN又实现了Binder类，这样AMP和AMS就可以通过Binder来进行进程间通信。ActivityManager通过AMN的getDefault方法得到AMP，通过AMP就可以和AMS进行通信。除ActivityManager以外，有些想要与AMS进行通信的类也需要通过AMP。
+
+Android 8.0 AMS, 采用的是AIDL，IActivityManager.java类是由AIDL工具在编译时自动生成的。要实现进程间通信，服务器端也就是AMS只需要继承IActivityManager.Stub类并实现相应的方法就可以了。采用AIDL后就不需要使用AMS的代理类AMP了，因此Android 8.0去掉了AMP，代替它的是IActivityManager，它是AMS在本地的代理。
+
+![Android 8.0 AMS家族]()
+
+#### 6.2 AMS 的启动过程
+
+AMS的启动是在SystemServer进程中启动的。
+
+SystemServer的run方法会首先加载了动态库libandroid_servers.so。接下来创建SystemServiceManager，它会对系统的服务进行创建、启动和生命周期管理。
+
+分别是引导服务、核心服务和其他服务，其中其他服务是一些非紧要和不需要立即启动的服务。AMS 是在引导服务中启动的
+
+mSystemServiceManager.startService（ActivityManagerService.Lifecycle.class）.getService（）实际得到的就是AMS实例。
+
+#### 6.3 AMS 与应用程序进程
+
+- 启动应用程序时AMS会检查这个应用程序需要的应用程序进程是否存在。
+- 如果需要的应用程序进程不存在，AMS就会请求Zygote进程创建需要的应用程序进程。
+
+#### 6.4 AMS 重要的数据结构
+...
+
+#### 6.5 Activity 栈管理
+
+![Activity任务栈模型]()
+
+ActivityRecord 用来记录一个Activity 的所有信息，TaskRecord 中包含了一个或多个ActivityRecord，TaskRecord用来表示Activity的任务栈，用来管理栈中的ActivityRecord，ActivityStack又包含了一个或多个TaskRecord，它是TaskRecord的管理者。
+
+ singleInstance：和singleTask基本类似，不同的是启动Activity时，首先要创建一个新栈，然后创建该Activity实例并压入新栈中，新栈中只会存在这一个Activity实例。
+
+taskAffinity与FLAG_ACTIVITY_NEW_TASK或者singleTask配合。如果新启动Activity的taskAffinity和栈的taskAffinity相同则加入到该栈中；如果不同，就会创建新栈。
+
+taskAffinity与allowTaskReparenting配合。如果allowTaskReparenting为true，说明Activity 具有转移的能力。
+
+### ch7 理解 WindowManager
+
+![Window、WindowManager和WMS的关系]()
+
+![WindowManager的关联类]()
+
+Context的getSystemService方法得到的是WindowManagerImpl实例；WindowManagerImpl虽然是WindowManager的实现类，但是没有实现什么功能，而是将功能实现委托给了WindowManagerGlobal，这里用到的是桥接模式。
+
+PhoneWindow继承自Window，Window通过setWindowManager方法与WindowManager发生关联。WindowManager 继承自接口ViewManager，WindowManagerImpl是WindowManager 接口的实现类，但是具体的功能都会委托给WindowManagerGlobal来实现。
+
+Window 的属性，它们分别是Type（Window的类型）、Flag（Window的标志）和SoftInputMode（软键盘相关模式）。
+
+![Window的操作]()
+
+WindowManagerGlobal中维护的和Window操作相关的3个列表，在窗口的添加、更新和删除过程中都会涉及这3个列表，它们分别是View 列表（ArrayList＜View＞ mViews）、布局参数列表（ArrayList＜WindowManager.LayoutParams＞mParams）和ViewRootImpl列表（ArrayList＜ViewRootImpl＞mRoots）
+
+`addView`:
+1. 参数检查
+2. 若为子窗口会根据父窗口对子窗口的WindowManager.LayoutParams 类型的wparams 对象进行相应调整
+3. 将添加的View保存到View列表中
+4. 将窗口的参数保存到布局参数列表中
+5. 创建了ViewRootImp并赋值给root，紧接着将root存入到ViewRootImpl列表中
+6. 将窗口和窗口的参数通过setView方法设置到ViewRootImpl中
+
+ViewRootImpl身负了很多职责，主要有以下几点：· View树的根并管理View树。· 触发View的测量、布局和绘制。· 输入事件的中转站。· 管理Surface。· 负责与WMS进行进程间通信。
+
+![ViewRootImpl与WMS通信]()
+
+在addToDisplay方法中调用了WMS的addWindow方法，并将自身也就是Session作为参数传了进去，每个应用程序进程都会对应一个Session，WMS会用ArrayList来保存这些Session，这就是为什么WMS包含Session的原因。这样剩下的工作就交给WMS来处理，在WMS中会为这个添加的窗口分配Surface，并确定窗口显示次序，可见负责显示界面的是画布Surface，而不是窗口本身。WMS 会将它所管理的Surface 交由SurfaceFlinger处理，SurfaceFlinger会将这些Surface混合并绘制到屏幕上。
+
+![系统窗口StatusBar的添加过程的时序图]()
+
+Activity 的添加过程：
+无论是哪种窗口，它的添加过程在WMS 处理部分中基本是类似的，只不过会在权限和窗口显示次序等方面会有些不同。
+
+Window 的更新过程：
+`ViewManager#updateViewLayout` ->...-> `ViewRootImpl#scheduleTraversals`
+
+```java
+//ViewRootImpl.java
+void scheduleTraversals() {
+	...
+	mChoreographer.postCallback(Choreographer.CALLBACK_TRAVERSAL, mTraversalRunnable, null);
+}
+```
+Choreographer译为“舞蹈指导”，用于接收显示系统的VSync信号，在下一个帧渲染时控制执行一些操作。Choreographer的postCallback方法用于发起添加回调，这个添加的回调将在下一帧被渲染时执行。
+
+-> `doTraversal` -> `performTraversals` ViewTree 开始 View 的工作流程。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
