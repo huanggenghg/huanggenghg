@@ -421,7 +421,7 @@ Choreographer译为“舞蹈指导”，用于接收显示系统的VSync信号�
 3. 输入系统的中转站：InputManagerService（IMS）会对触摸事件进行处理，它会寻找一个最合适的窗口来处理触摸反馈信息
 4. Surface管理：窗口并不具备绘制的功能，因此每个窗口都需要有一块Surface来供自己绘制
 
-![WMS 职责]()
+![WMS 职责](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/WMS%20%E8%81%8C%E8%B4%A3.png)
 
 #### 8.2 WMS 的创建过程
 
@@ -450,7 +450,7 @@ system_server线程等待的就是android.display线程，一直到android.displ
 
 PWM的init方法运行在android.ui线程中，它的优先级要高于initPolicy方法所在的android.display线程，因此android.display 线程要等PWM的init方法执行完毕后，处于等待状态的android.display线程才会被唤醒从而继续执行下面的代码。
 
-![三个线程之间的关系]()
+![三个线程之间的关系](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E4%B8%89%E4%B8%AA%E7%BA%BF%E7%A8%8B%E4%B9%8B%E9%97%B4%E7%9A%84%E5%85%B3%E7%B3%BB.png)
 
 1. 首先在system_server 线程中执行了SystemServer的startOtherServices 方法，在startOtherServices方法中会调用WMS的main方法，main方法会创建WMS，创建的过程在android.display线程中实现，创建WMS的优先级更高，因此system_server线程要等WMS创建完成后，处于等待状态的system_server线程才会被唤醒从而继续执行下面的代码。
 2. 在WMS的构造方法中会调用WMS的initPolicy方法，在initPolicy方法中又会调用PWM 的init 方法，PWM的init方法在android.ui线程中运行，它的优先级要高于android.display线程，因此“android.display”线程要等PWM的init方法执行完毕后，处于等待状态的android.display线程才会被唤醒从而继续执行下面的代码。
@@ -497,15 +497,15 @@ Java 虚拟机家族：HotSpot VM、J9 VM、Zing VM
 
 Java 虚拟机执行流程：
 
-![Java 虚拟机执行流程]()
+![Java 虚拟机执行流程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Java%20%E8%99%9A%E6%8B%9F%E6%9C%BA%E6%89%A7%E8%A1%8C%E6%B5%81%E7%A8%8B.png)
 
 #### 10.2 Java 虚拟机结构
 
-![Java虚拟机结构]()
+![Java虚拟机结构](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Java%E8%99%9A%E6%8B%9F%E6%9C%BA%E7%BB%93%E6%9E%84.png)
 
 Java虚拟机结构包括运行时数据区域、执行引擎、本地库接口和本地方法库，其中类加载子系统并不属于Java虚拟机的内部结构。
 
-![类的生命周期]()
+![类的生命周期](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E7%B1%BB%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F.png)
 
 1. 加载：查找并加载Class文件。
 
@@ -576,17 +576,76 @@ Java 对象在虚拟机中的生命周期：
 - 标记—压缩算法
 - 分代收集算法
 
+### ch11 Dalvik 和 ART
 
+DVM 与 JVM 的区别
 
+1. 基于的架构不同：DVM是基于寄存器的，它没有基于栈的虚拟机在复制数据时而使用的大量的出入栈指令，同时指令更紧凑、更简洁。但是由于显式指定了操作数，所以基于寄存器的指令会比基于栈的指令要大，但是由于指令数量的减少，总的代码数不会增加多少。
+2. 执行的字节码不同：DVM会用dx工具将所有的.class文件转换为一个.dex文件，然后DVM会从该.dex文件读取指令和数据。执行顺序为.java文件→.class文件→.dex文件。
+3. DVM允许在有限的内存中同时运行多个进程
+4. DVM允许在有限的内存中同时运行多个进程：是一个DVM进程，同时也用来创建和初始化DVM实例。每当系统需要创建一个应用程序时，Zygote就会fock自身，快速地创建和初始化一个DVM实例，用于应用程序的运行。
+5. DVM有共享机制：DVM拥有预加载—共享的机制，不同应用之间在运行时可以共享相同的类，拥有更高的效率。
+6. DVM早期没有使用JIT编译器：从Android 2.2版本开始DVM使用了JIT 编译器，它会对多次运行的代码（热点代码）进行编译，生成相当精简的本地机器码（Native Code），这样在下次执行到相同逻辑的时候，直接使用编译之后的本地机器码，而不是每次都需要编译
 
+![DVM 架构]()
 
+DVM 的运行时堆：DVM的运行时堆使用标记—清除（Mark-Sweep）算法进行GC，它由两个Space以及多个辅助数据结构组成，两个Space分别是Zygote Space（Zygote Heap）和Allocation Space （Active Heap）。
 
+ART 与 DVM 的区别：
 
+1. 而在ART中，系统在安装应用程序时会进行一次AOT（ahead of time compilation，预编译），将字节码预先编译成机器码并存储在本地，这样应用程序每次运行时就不需要执行编译了，运行效率会大大提升，设备的耗电量也会降低。采用AOT也会有缺点，主要有两个：第一个是AOT会使得应用程序的安装时间变长，尤其是一些复杂的应用；第二个是字节码预先编译成机器码，机器码需要的存储空间会多一些。Android 7.0 版本中的 ART 加入了即时编译 JIT 作为补充解决上述缺点。
+2. DVM是为32位CPU设计的，而ART支持64位并兼容32位CPU，这也是DVM被淘汰的主要原因之一
+3. ART对垃圾回收机制进行了改进，比如更频繁地执行并行垃圾收集，将GC暂停由2次减少为1次等。
+4. ART的运行时堆空间划分和DVM不同
 
+**DVM和ART是在Zygote进程中诞生的，这样Zygote进程就持有了DVM或者ART的实例，此后Zygote进程fork自身创建应用程序进程时，应用程序进程也得到了DVM或者ART的实例，这样就不需要每次启动应用程序进程都要创建DVM或者ART，从而加快了应用程序进程的启动速度**。
 
+### ch12 理解 ClassLoader
 
+Java中的类加载器主要有两种类型，即系统类加载器和自定义类加载器。其中系统类加载器包括3种，分别是Bootstrap ClassLoader、Extensions ClassLoader和Application ClassLoader。
 
+![ClassLoader的继承关系]()
 
+双亲委托模式：所谓双亲委托模式就是首先判断该Class是否已经加载，如果没有则不是自身去查找而是委托给父加载器进行查找，这样依次进行递归，直到委托到最顶层的Bootstrap ClassLoader，如果Bootstrap ClassLoader找到了该Class，就会直接返回，如果没找到，则继续依次向下查找，如果还没找到则最后会交由自身去查找。
+
+双亲委托模式好处：
+
+- 避免重复加载
+- 更加安全：如果不使用双亲委托模式，就可以自定义一个String 类来替代系统的String类，这显然会造成安全隐患，采用双亲委托模式会使得系统的String类在Java虚拟机启动时就被加载，也就无法自定义String类来替代系统的String类，除非我们修改类加载器搜索类的默认算法。还有一点，只有两个类名一致并且被同一个类加载器加载的类，Java虚拟机才会认为它们是同一个类，想要骗过Java虚拟机显然不会那么容易
+
+Android 中的 ClassLoader：加载的不再是Class文件，而是dex 文件，这就需要重新设计ClassLoader 相关类。也分为两种类型，分别是系统类加载器和自定义加载器。其中系统类加载器主要包括3种，分别是BootClassLoader、PathClassLoader和DexClassLoader。
+
+![Android8.0中ClassLoader的继承关系]()
+
+![ClassLoader查找流程]()
+
+Android中没有ExtClassLoader 和AppClassLoader，替代它们的是PathClassLoader和DexClassLoader。
+
+### ch13 热修复原理
+
+代码修复、资源修复和动态链接库修复。
+
+Instant Run中的资源热修复可以简单地总结为两个步骤：
+
+1. 创建新的AssetManager，通过反射调用addAssetPath方法加载外部的资源，这样新创建的AssetManager就含有了外部资源。
+2. 将AssetManager类型的mAssets字段的引用全部替换为新创建的AssetManager。
+
+代码修复方案：底层替换方案、类加载方案和Instant Run方案。
+
+类加载方案：根据类的查找流程，我们将有Bug的类Key.class进行修改，再将Key.class打包成包含dex的补丁包Patch.jar，放在Element数组dexElements的第一个元素，这样会首先找到Patch.dex中的Key.class去替换之前存在Bug的Key.class，排在数组后面的dex文件中存在Bug的Key.class根据ClassLoader的双亲委托模式就不会被加载，这就是类加载方案
+
+![类加载方案]()
+
+类加载方案需要重启App 后让ClassLoader 重新加载新的类，为什么需要重启呢？这是因为类是无法被卸载的，要想重新加载新的类就需要重启App，因此采用类加载方案的热修复框架是不能即时生效的。
+
+底层替换方案：底层替换方案不会再次加载新类，而是直接在Native层修改原有类，由于在原有类进行修改限制会比较多，且不能增减原有类的方法和字段，如果我们增加了方法数，那么方法索引数也会增加，这样访问方法时会无法通过索引找到正确的方法，同样的字段也是类似的情况。
+
+Instant Run 方案：ASM
+
+动态链接库的修复：热修复框架的so的修复的主要是更新so，换句话说就是重新加载so，因此so的修复的基础原理就是加载so：
+
+1. 将so补丁插入到NativeLibraryElement数组的前部，让so补丁的路径先被返回和加载。
+2. 调用System的load方法来接管so的加载入口。
 
 
 
