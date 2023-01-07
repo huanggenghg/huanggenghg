@@ -412,17 +412,169 @@ Choreographer译为“舞蹈指导”，用于接收显示系统的VSync信号�
 
 -> `doTraversal` -> `performTraversals` ViewTree 开始 View 的工作流程。
 
+### ch8 理解 WindowManagerService
+
+#### 8.1 WMS 的职责
+
+1. 窗口管理：窗口管理的核心成员有DisplayContent、WindowToken和WindowState
+2. 窗口动画：动画子系统的管理者为WindowAnimator
+3. 输入系统的中转站：InputManagerService（IMS）会对触摸事件进行处理，它会寻找一个最合适的窗口来处理触摸反馈信息
+4. Surface管理：窗口并不具备绘制的功能，因此每个窗口都需要有一块Surface来供自己绘制
+
+![WMS 职责]()
+
+#### 8.2 WMS 的创建过程
+
+WMS是在SystemServer进程中创建的。
+
+官方把系统服务分为了三种类型，分别是引导服务、核心服务和其他服务，其中其他服务是一些非紧要和不需要立即启动的服务，**WMS就是其他服务的一种**。
+
+初始化，Watchdog 用来监控系统一些关键服务的运行状况。
+
+WMS的main 方法是运行在SystemServer的run方法中的，换句话说就是运行在“system_server”线程中。
+
+```java
+//WindowManagerService.java
+public static WindowManagerService main(final Context context, InputManagerService im, final boolean haveInputMethods, final boolean showBootMsgs, final boolean onlyCore, WindowManagerPolicy policy) {
+	DisplayThread.getHandler().runWithScissots(() -> // 切换线程，WMS 的创建是运行在 android.display 线程中的
+		sInstance = new WindowManagerService(context, im, haveInputMethods, showBootMsgs, onlyCore, policy), 0);
+	return sInstance;
+}
+```
+
+DisplayThread是一个单例的前台线程，这个线程用来处理需要低延时显示的相关操作，并只能由WindowManager、DisplayManager和InputManager实时执行快速操作。
+
+内部会根据每个线程只有一个Looper 的原理来判断当前的线程（system_server线程）是否是Handler所指向的线程（android.display线程），如果是则直接执行Runnable的run方法，如果不是则调用BlockingRunnable的postAndWait方法，并将当前线程的Runnable作为参数传进去。
+
+system_server线程等待的就是android.display线程，一直到android.display线程执行完毕再执行system_server线程，这是因为android.display线程内部执行了WMS的创建，而WMS的创建优先级要更高。
+
+PWM的init方法运行在android.ui线程中，它的优先级要高于initPolicy方法所在的android.display线程，因此android.display 线程要等PWM的init方法执行完毕后，处于等待状态的android.display线程才会被唤醒从而继续执行下面的代码。
+
+![三个线程之间的关系]()
+
+1. 首先在system_server 线程中执行了SystemServer的startOtherServices 方法，在startOtherServices方法中会调用WMS的main方法，main方法会创建WMS，创建的过程在android.display线程中实现，创建WMS的优先级更高，因此system_server线程要等WMS创建完成后，处于等待状态的system_server线程才会被唤醒从而继续执行下面的代码。
+2. 在WMS的构造方法中会调用WMS的initPolicy方法，在initPolicy方法中又会调用PWM 的init 方法，PWM的init方法在android.ui线程中运行，它的优先级要高于android.display线程，因此“android.display”线程要等PWM的init方法执行完毕后，处于等待状态的android.display线程才会被唤醒从而继续执行下面的代码。
+3. PWM的init方法执行完毕后，android.display线程就完成了WMS的创建，等待的system_server线程被唤醒后继续执行WMS的main 方法后的代码逻辑，比如WMS的displayReady方法用来初始化屏幕显示信息。
+
+#### 8.3 WMS 的重要成员
+
+#### 8.4 Window 的添加过程（WMS 处理部分）
+
+`WMS#addWindow`：
+
+- part1：根据 Window 属性，检查权限；通过displayId 来获得窗口要添加到哪个DisplayContent 上；根据attrs.token 作为key 值从mWindowMap中得到该子窗口的父窗口。接着对父窗口进行判断。返回的是`addWindow`的各种状态。
+
+- part2：通过displayContent的getWindowToken方法得到WindowToken；rootType 赋值（父窗口或自身 type）；隐式创建 WindowToken；转化为专门针对应用程序窗口的 AppWindowToken，后续会根据其值进行判断。
+
+- part3：创建了WindowState（存有窗口的所有的状态信息，在WMS中它代表一个窗口）；判断请求添加窗口的客户端是否已经死亡、窗口的DisplayContent是否为null；根据窗口的type对窗口的LayoutParams的一些成员变量进行修改；WindowState 添加到对应数据结构及 WindowToken 中。
+
+**总结**：
+addWindow方法分了3个部分来进行讲解，主要就是做了下面4件事：
+
+1. 对所要添加的窗口进行检查，如果窗口不满足一些条件，就不会再执行下面的代码逻辑。
+2. WindowToken相关的处理，比如有的窗口类型需要提供WindowToken，没有提供的话就不会执行下面的代码逻辑，有的窗口类型则需要由WMS 隐式创建WindowToken。
+3. WindowState的创建和相关处理，将WindowToken和WindowState相关联。
+4. 创建和配置DisplayContent，完成窗口添加到系统前的准备工作。
+
+#### 8.5 Window 的删除过程
+
+`WindowManagerGlobal#removeView` -> `WindowManagerGlobal#removeViewLocked`：InputMethodManager 实例不为null处理结束 View 的输入法相关逻辑 -> `ViewRootImpl#die` -> `ViewRootImpl#doDie`：判断执行线程的正确性（需为创建 View 的原始线程）、防止重复调用、`dispatchDetachedFromWindow`方法来销毁View > 如果V有子View并且不是第一次被添加 -> `WindowManagerGlobal#doRemoveView`：doRemoveView方法会从这三个列表中清除V对应的元素。在注释1处找到V对应的ViewRootImpl在ViewRootImpl列表中的索引，接着根据这个索引从ViewRootImpl列表、布局参数列表和View列表中删除与V对应的元素。
+
+`dispatchDetachedFromWindow`方法来销毁View -> `IWindowSession#remove` -> 跨进程 -> `Session#remove` -> `WindowManagerService#removeWindow`：获取Window对应的WindowState，WindowState用于保存窗口的信息，在WMS中它用来描述一个窗口。 -> `WindowState#removeIfPossible`：是否需要延迟删除操作的条件判断过滤 -> `WindowState#removeImmediately`：是否正在删除 Window 操作，避免重复删除；删除对应控制器，将V对应的Session从WMS的ArraySet＜Session＞ mSessions 中删除并清除Session 对应的SurfaceSession 资源（SurfaceSession是SurfaceFlinger的一个连接，通过这个连接可以创建1个或者多个Surface并渲染到屏幕上），接着调用了WMS的postWindowRemoveCleanupLocked方法用于对V进行一些集中的清理工作。
+
+**总结**：
+1. 检查删除线程的正确性，如果不正确就抛出异常。
+2. 从ViewRootImpl列表、布局参数列表和View列表中删除与V对应的元素。
+3. 判断是否可以直接执行删除操作，如果不能就推迟删除操作。
+4. 执行删除操作，清理和释放与V相关的一切资源。
 
 
+### ch10 Java 虚拟机
 
+#### 10.1 概述
 
+Java 虚拟机家族：HotSpot VM、J9 VM、Zing VM
 
+Java 虚拟机执行流程：
 
+![Java 虚拟机执行流程]()
 
+#### 10.2 Java 虚拟机结构
 
+![Java虚拟机结构]()
 
+Java虚拟机结构包括运行时数据区域、执行引擎、本地库接口和本地方法库，其中类加载子系统并不属于Java虚拟机的内部结构。
 
+![类的生命周期]()
 
+1. 加载：查找并加载Class文件。
+
+2. 链接：包括验证、准备和解析。
+- 验证：确保被导入类型的正确性。
+- 准备：为类的静态字段分配字段，并用默认值初始化这些字段.
+- 解析：虚拟机将常量池内的符号引用替换为直接引用。
+
+3. 初始化：将类变量初始化为正确初始值
+
+系统加载器：Bootstrap ClassLoader（引导类加载器）、Extensions ClassLoader（拓展类加载器）、Application ClassLoader（应用程序类加载器）
+
+运行时数据区域：
+这些数据区域分别为程序计数器、Java虚拟机栈、本地方法栈、Java堆和方法区。
+
+1. 程序计数器：程序计数器是**线程私有**的。如果线程执行的方法不是Native方法，则程序计数器保存正在执行的字节码指令地址，如果是Native 方法则程序计数器的值为空（Undefined）。程序计数器是Java虚拟机规范中**唯一没有规定任何OutOfMemoryError情况的数据区域**。
+
+2. Java 虚拟机栈：**每一条Java 虚拟机线程都有一个线程私有的Java 虚拟机栈**（Java Virtual Machine Stacks）。它的生命周期与线程相同，与线程是同时创建的。存储的是线程中Java方法调用的状态，包括局部变量、参数、返回值以及运算的中间结果等。一个Java虚拟机栈包含了多个栈帧，一个栈帧用来存储局部变量表、操作数栈、动态链接、方法出口等信息。
+
+- 如果线程请求分配的栈容量超过Java虚拟机所允许的最大容量，Java虚拟机会抛出StackOverflowError。
+- 如果Java虚拟机栈可以动态扩展（大部分Java虚拟机都可以动态扩展），但是扩展时无法申请到足够的内存，或者在创建新的线程时没有足够的内存去创建对应的Java虚拟机栈，则会抛出OutOfMemoryError异常。
+
+3. 本地方法栈：与Java虚拟机栈类似，本地方法栈也会抛出StackOverflowError和OutOfMemoryError异常。
+
+4. Java 堆：Java堆（Java Heap）是被**所有线程**共享的运行时内存区域。Java堆用来存放对象实例，几乎所有的对象实例都在这里分配内存。如果在堆中没有足够的内存来完成实例分配，并且堆也无法进行扩展时，则会抛出OutOfMemoryError异常。
+
+5. 方法区：方法区（Method Area）是被所有线程共享的运行时内存区域，用来存储已经被Java虚拟机加载的类的结构信息，包括运行时常量池、字段和方法信息、静态变量等数据。**方法区是 Java 堆的逻辑组成部分**。如果方法区的内存空间不满足内存分配需求时，Java虚拟机会抛出OutOfMemoryError异常。
+
+6. 运行时常量池：运行时常量池（Runtime Constant Pool）**并不是运行时数据区域的其中一份子，而是方法区的一部分**。当创建类或接口时，如果构造运行时常量池所需的内存超过了方法区所能提供的最大值，Java虚拟机会抛出OutOfMemoryError异常。
+
+#### 10.6 垃圾标记算法
+
+Java 中的引用：
+
+- 强引用
+- 软引用：如果一个对象只具有软引用，当内存不够时，会回收这些对象的内存
+- 弱引用：比起软引用具有更短的生命周期，垃圾收集器一旦发现了只具有弱引用的对象，不管当前内存是否足够，都会回收它的内存。
+- 虚引用：一个只具有虚引用的对象，被垃圾收集器回收时会收到一个系统通知，这也是虚引用的主要作用。
+
+引用计数算法：循环引用问题
+
+根搜索算法：
+
+可以作为GC Roots的对象主要有以下几种：
+
+- Java栈中引用的对象。
+- 本地方法栈中JNI引用的对象。
+- 方法区中运行时常量池引用的对象。
+- 方法区中静态属性引用的对象。
+- 运行中的线程。
+- 由引导类加载器加载的对象。
+- GC控制的对象。
+
+Java 对象在虚拟机中的生命周期：
+
+1. 创建阶段（Created）
+2. 应用阶段（In Use）
+3. 不可见阶段（Invisible）
+4. 不可达阶段（Unreachable）
+5. 收集阶段（Collected）
+6. 终结阶段（Finalized）
+7. 对象空间重新分配阶段（Deallocated）
+
+垃圾回收算法：
+
+- 标记—清除算法
+- 复制算法
+- 标记—压缩算法
+- 分代收集算法
 
 
 
