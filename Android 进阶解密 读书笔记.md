@@ -587,7 +587,7 @@ DVM 与 JVM 的区别
 5. DVM有共享机制：DVM拥有预加载—共享的机制，不同应用之间在运行时可以共享相同的类，拥有更高的效率。
 6. DVM早期没有使用JIT编译器：从Android 2.2版本开始DVM使用了JIT 编译器，它会对多次运行的代码（热点代码）进行编译，生成相当精简的本地机器码（Native Code），这样在下次执行到相同逻辑的时候，直接使用编译之后的本地机器码，而不是每次都需要编译
 
-![DVM 架构]()
+![DVM 架构](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/DVM%20%E6%9E%B6%E6%9E%84.png)
 
 DVM 的运行时堆：DVM的运行时堆使用标记—清除（Mark-Sweep）算法进行GC，它由两个Space以及多个辅助数据结构组成，两个Space分别是Zygote Space（Zygote Heap）和Allocation Space （Active Heap）。
 
@@ -604,7 +604,7 @@ ART 与 DVM 的区别：
 
 Java中的类加载器主要有两种类型，即系统类加载器和自定义类加载器。其中系统类加载器包括3种，分别是Bootstrap ClassLoader、Extensions ClassLoader和Application ClassLoader。
 
-![ClassLoader的继承关系]()
+![ClassLoader的继承关系](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/ClassLoader%E7%9A%84%E7%BB%A7%E6%89%BF%E5%85%B3%E7%B3%BB.png)
 
 双亲委托模式：所谓双亲委托模式就是首先判断该Class是否已经加载，如果没有则不是自身去查找而是委托给父加载器进行查找，这样依次进行递归，直到委托到最顶层的Bootstrap ClassLoader，如果Bootstrap ClassLoader找到了该Class，就会直接返回，如果没找到，则继续依次向下查找，如果还没找到则最后会交由自身去查找。
 
@@ -615,9 +615,9 @@ Java中的类加载器主要有两种类型，即系统类加载器和自定义�
 
 Android 中的 ClassLoader：加载的不再是Class文件，而是dex 文件，这就需要重新设计ClassLoader 相关类。也分为两种类型，分别是系统类加载器和自定义加载器。其中系统类加载器主要包括3种，分别是BootClassLoader、PathClassLoader和DexClassLoader。
 
-![Android8.0中ClassLoader的继承关系]()
+![Android8.0中ClassLoader的继承关系](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/Android8.0%E4%B8%ADClassLoader%E7%9A%84%E7%BB%A7%E6%89%BF%E5%85%B3%E7%B3%BB.png)
 
-![ClassLoader查找流程]()
+![ClassLoader查找流程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/ClassLoader%E6%9F%A5%E6%89%BE%E6%B5%81%E7%A8%8B.png)
 
 Android中没有ExtClassLoader 和AppClassLoader，替代它们的是PathClassLoader和DexClassLoader。
 
@@ -634,7 +634,7 @@ Instant Run中的资源热修复可以简单地总结为两个步骤：
 
 类加载方案：根据类的查找流程，我们将有Bug的类Key.class进行修改，再将Key.class打包成包含dex的补丁包Patch.jar，放在Element数组dexElements的第一个元素，这样会首先找到Patch.dex中的Key.class去替换之前存在Bug的Key.class，排在数组后面的dex文件中存在Bug的Key.class根据ClassLoader的双亲委托模式就不会被加载，这就是类加载方案
 
-![类加载方案]()
+![类加载方案](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%96%B9%E6%A1%88.png)
 
 类加载方案需要重启App 后让ClassLoader 重新加载新的类，为什么需要重启呢？这是因为类是无法被卸载的，要想重新加载新的类就需要重启App，因此采用类加载方案的热修复框架是不能即时生效的。
 
@@ -651,15 +651,25 @@ Instant Run 方案：ASM
 
 Activity插件化主要有3种实现方式，分别是反射实现、接口实现和Hook技术实现。
 
-![根Activity启动过程]()
+![根Activity启动过程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E6%A0%B9Activity%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B.png)
 
-![普通Activity启动过程]()
+![普通Activity启动过程](https://raw.githubusercontent.com/huanggenghg/huanggenghg/main/res/%E6%99%AE%E9%80%9AActivity%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B.png)
 
 Hook IActivityManager 方案实现：具体做法就是先使用一个在AndroidManifest.xml中注册的Activity来进行占坑，用来通过AMS的校验。接着之后用插件Activity替换占坑的Activity。
 
 主要的方案就是先用一个在AndroidManifest.xml中注册的Activity来进行占坑，用来通过AMS的校验，接着在合适的时机用插件Activity替换占坑的Activity。为了更好地讲解启动插件Activity的原理，本节省略了插件Activity的加载逻辑，直接创建一个TargetActivity来代表已经加载进来的插件Activity。同时这一节使我们更好地理解了Activity的启动过程。
 
+### ch16 性能优化
 
+绘制原理：要想画面保持在60fps，需要屏幕在1秒内刷新60次，也就是每16.6667ms刷新一次（绘制时长在16ms以内）。
+
+卡顿原因：
+
+- 布局Layout过于复杂，无法在16ms内完成渲染。
+- 同一时间动画执行的次数过多，导致CPU或GPU负载过重。
+- View过度绘制，导致某些像素在同一帧时间内被绘制多次。
+- 在UI线程中做了稍微耗时的操作。
+- GC回收时暂停时间过长或者频繁的GC产生大量的暂停时间。
 
 
 
