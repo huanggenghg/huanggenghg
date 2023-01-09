@@ -647,6 +647,20 @@ Instant Run 方案：ASM
 1. 将so补丁插入到NativeLibraryElement数组的前部，让so补丁的路径先被返回和加载。
 2. 调用System的load方法来接管so的加载入口。
 
+### ch15 Activity 插件化
+
+Activity插件化主要有3种实现方式，分别是反射实现、接口实现和Hook技术实现。
+
+![根Activity启动过程]()
+
+![普通Activity启动过程]()
+
+Hook IActivityManager 方案实现：具体做法就是先使用一个在AndroidManifest.xml中注册的Activity来进行占坑，用来通过AMS的校验。接着之后用插件Activity替换占坑的Activity。
+
+主要的方案就是先用一个在AndroidManifest.xml中注册的Activity来进行占坑，用来通过AMS的校验，接着在合适的时机用插件Activity替换占坑的Activity。为了更好地讲解启动插件Activity的原理，本节省略了插件Activity的加载逻辑，直接创建一个TargetActivity来代表已经加载进来的插件Activity。同时这一节使我们更好地理解了Activity的启动过程。
+
+
+
 
 
 
