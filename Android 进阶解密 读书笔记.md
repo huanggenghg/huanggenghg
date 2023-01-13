@@ -659,7 +659,7 @@ Hook IActivityManager 方案实现：具体做法就是先使用一个在Android
 
 主要的方案就是先用一个在AndroidManifest.xml中注册的Activity来进行占坑，用来通过AMS的校验，接着在合适的时机用插件Activity替换占坑的Activity。为了更好地讲解启动插件Activity的原理，本节省略了插件Activity的加载逻辑，直接创建一个TargetActivity来代表已经加载进来的插件Activity。同时这一节使我们更好地理解了Activity的启动过程。
 
-### ch16 性能优化
+### ch16 绘制优化
 
 绘制原理：要想画面保持在60fps，需要屏幕在1秒内刷新60次，也就是每16.6667ms刷新一次（绘制时长在16ms以内）。
 
@@ -671,13 +671,43 @@ Hook IActivityManager 方案实现：具体做法就是先使用一个在Android
 - 在UI线程中做了稍微耗时的操作。
 - GC回收时暂停时间过长或者频繁的GC产生大量的暂停时间。
 
+布局优化：
 
+工具：Hierarchy Viewer、Android Lint
 
+优化方法：合理运用布局、Include、Merge和ViewStub
 
+### ch17 内存优化
 
+内存泄漏产生的原因，主要分为三大类：
 
+- 由开发人员自己编码造成的泄漏。
+- 第三方框架造成的泄漏。
+- 由Android系统或者第三方ROM造成的泄漏。
 
+内存泄漏的场景：
 
+- 非静态内部类的静态实例
+- 多线程相关的匿名内部类/非静态内部类
+- Handler内存泄漏：解决方案有两个，一个是使用一个静态的Handler内部类，Handler持有的对象要使用弱引用；还有一个解决方案是在Activity的Destroy方法中移除MessageQueue中的消息。
+- 未正确使用Context
+- 静态View
+- WebView
+- 资源对象未关闭
+- 集合中对象没清理
+- Bitmap对象
+- 监听器未关闭
+
+内存抖动：一般指在很短的时间内发生了多次内存分配和释放，严重的内存抖动还会导致应用程序卡顿。内存抖动出现的原因主要是短时间频繁地创建对象。
+
+内存分析工具 MAT：
+
+- Shallow Heap：对象自身占用的内存大小，不包括它引用的对象
+- Retained Heap：一个对象的Retained Set包含对象所占内存的总大小。换句话说，Retained Heap就是当前对象被GC后，从Heap上总共能释放掉的内存。
+
+LeakCanary：
+
+[LeakCanary 原理](https://github.com/huanggenghg/huanggenghg/blob/main/LeakCanary%20%E5%8E%9F%E7%90%86.md)
 
 
 
