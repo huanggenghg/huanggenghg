@@ -36,11 +36,7 @@ Gson 解析简易流程：
 
 ReflectiveTypeAdapter内部会首先创建该类型的对象，然后遍历该对象内部的所有属性，接着把json传的读去委托给了各个属性
 
-![Gson 解析简易流程](https://p1-jj.byteimg.com/tos-cn-i-t2oaga2asx/gold-user-assets/2019/3/11/1696d4be32a8387f~tplv-t2oaga2asx-zoom-in-crop-mark:4536:0:0:0.image)
-
 找到该类型内部的所有属性，并尝试逐一封装成BoundField。
-
-![Gson 解析流程](https://p1-jj.byteimg.com/tos-cn-i-t2oaga2asx/gold-user-assets/2019/3/11/1696d4be32a8387f~tplv-t2oaga2asx-zoom-in-crop-mark:4536:0:0:0.image)
 
 `gson.fromJson(jsonStr,UserInfo.class)`方法内部真实的代码执行流程大致如下：
 
@@ -102,7 +98,7 @@ deserialize的时候，会使用asm来构造对象，并且做batch set，也就
 
 - symbolTable算法
 
-*[Fastjson内幕]*(https://blog.csdn.net/zhxdick/article/details/78292033?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522167383863716800188598109%2522%252C%2522scm%2522%253A%252220140713.130102334.pc%255Fblog.%2522%257D&request_id=167383863716800188598109&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~blog~first_rank_ecpm_v1~rank_v31_ecpm-1-78292033-null-null.article_score_rank_blog&utm_term=fastjson&spm=1018.2226.3001.4450)
+[Fastjson内幕](https://blog.csdn.net/zhxdick/article/details/78292033?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522167383863716800188598109%2522%252C%2522scm%2522%253A%252220140713.130102334.pc%255Fblog.%2522%257D&request_id=167383863716800188598109&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~blog~first_rank_ecpm_v1~rank_v31_ecpm-1-78292033-null-null.article_score_rank_blog&utm_term=fastjson&spm=1018.2226.3001.4450)
 
 
 
