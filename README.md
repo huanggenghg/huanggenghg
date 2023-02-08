@@ -55,3 +55,5 @@
 ### 网络💻
 
 [HTTPS 建立连接的详细过程](https://github.com/huanggenghg/huanggenghg/blob/main/HTTPS%20%E5%BB%BA%E7%AB%8B%E8%BF%9E%E6%8E%A5%E7%9A%84%E8%AF%A6%E7%BB%86%E8%BF%87%E7%A8%8B.md)
+
+[HTTP 协议历史及其各版本区别](https://github.com/huanggenghg/huanggenghg/blob/main/HTTP%20%E5%8D%8F%E8%AE%AE%E5%8E%86%E5%8F%B2%E5%8F%8A%E5%85%B6%E5%90%84%E7%89%88%E6%9C%AC%E5%8C%BA%E5%88%AB.md)
