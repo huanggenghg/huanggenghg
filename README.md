@@ -51,3 +51,7 @@
 ### 架构🏗️
 
 [设计模式](https://github.com/huanggenghg/huanggenghg/blob/main/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F.md)
+
+### 网络💻
+
+[HTTPS 建立连接的详细过程](https://github.com/huanggenghg/huanggenghg/blob/main/HTTPS%20%E5%BB%BA%E7%AB%8B%E8%BF%9E%E6%8E%A5%E7%9A%84%E8%AF%A6%E7%BB%86%E8%BF%87%E7%A8%8B.md)
