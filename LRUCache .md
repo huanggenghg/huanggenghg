@@ -151,3 +151,38 @@ cacheSize
     }
 ```
 
+### 四、DiskLruCache 原理
+
+与 LruCache 类似，除了是操作本地文件————`journal`日志文件
+
+```txt
+libcore.io.DiskLruCache
+1
+100
+2
+
+CLEAN 3400330d1dfc7f3f7f4b8d4d803dfcf6 832 21054
+DIRTY 335c4c6028171cfddfbaae1a9c313c52
+CLEAN 335c4c6028171cfddfbaae1a9c313c52 3934 2342
+REMOVE 335c4c6028171cfddfbaae1a9c313c52
+DIRTY 1ab96a171faeeee38496d8b330771a7a
+CLEAN 1ab96a171faeeee38496d8b330771a7a 1600 234
+READ 335c4c6028171cfddfbaae1a9c313c52
+```
+
+其中1表示diskCache的版本，100表示应用的版本，2表示一个key对应多少个缓存文件。
+
+四种状态：
+
+- DIRTY 创建或者修改一个缓存的时候，会有一条DIRTY记录，后面会跟一个CLEAN或REMOVE的记录。如果没有CLEAN或REMOVE，对应的缓存文件是无效的，会被删掉
+- CLEAN 表示对应的缓存操作成功了，后面会带上缓存文件的大小
+- REMOVE 表示对应的缓存被删除了
+- READ 表示对应的缓存被访问了，因为LRU需要READ记录来调整缓存的顺序
+
+`journalFile`为缓存操作的所有记录，在操作DiskLruCache过程中，修改内存的缓存记录的同时也会修改硬盘中的日志，这样就是下次冷启动，也可以从日志中恢复。
+
+`lurEntries`是缓存实体在内存中的表示，而`journal`是缓存实体在日志中的表示。
+
+DiskLruCache整体的思想跟LruCache是一样的，也是利用了LinkedHashMap,但是DiskLruCache做了很多保护措施，DiskLruCache在各种对文件的操作上都将读写分开，为了怕写失败等情况，都是先尝试写在一个中间文件，成功再重命名回目标文件。
+
+*详情对应查看源码*
