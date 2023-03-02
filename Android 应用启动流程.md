@@ -5,7 +5,7 @@
 `EventHub`
 `InputReader`、`InputDispatcher`
 `InboundQueue`(iq)、`OutboundQueue`(oq)、`WaitQueue`(wq)、`PendingInputEventQueue`(aq)
-`deliveerInputEvent`
+`deliverInputEvent`
 `InputResponse`
 
 ![Input 模型](https://upload-images.jianshu.io/upload_images/26874665-9a6f99f4f9970bb6.PNG)

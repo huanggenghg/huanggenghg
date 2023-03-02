@@ -48,6 +48,8 @@
 
 [LeakCanary 原理](https://github.com/huanggenghg/huanggenghg/blob/main/LeakCanary%20%E5%8E%9F%E7%90%86.md)
 
+[Android 应用启动流程](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E5%BA%94%E7%94%A8%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B.md)
+
 ### 架构🏗️
 
 [设计模式](https://github.com/huanggenghg/huanggenghg/blob/main/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F.md)
