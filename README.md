@@ -28,6 +28,8 @@
 
 ### Android👾
 
+[ANR 的 触发原理](https://github.com/huanggenghg/huanggenghg/blob/main/ANR%20%E7%9A%84%E8%A7%A6%E5%8F%91%E5%8E%9F%E7%90%86.md)
+
 [包管理机制和 PMS](https://github.com/huanggenghg/huanggenghg/blob/main/%E5%8C%85%E7%AE%A1%E7%90%86%E6%9C%BA%E5%88%B6%E5%92%8C%20PMS.md)
 
 [输入系统和 IMS](https://github.com/huanggenghg/huanggenghg/blob/main/%E8%BE%93%E5%85%A5%E7%B3%BB%E7%BB%9F%E5%92%8C%20IMS.md)
@@ -47,8 +49,6 @@
 [Android 卡顿问题](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E5%8D%A1%E9%A1%BF%E9%97%AE%E9%A2%98.md)
 
 [LeakCanary 原理](https://github.com/huanggenghg/huanggenghg/blob/main/LeakCanary%20%E5%8E%9F%E7%90%86.md)
-
-[Android 应用启动流程](https://github.com/huanggenghg/huanggenghg/blob/main/Android%20%E5%BA%94%E7%94%A8%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B.md)
 
 ### 架构🏗️
 
