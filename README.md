@@ -50,6 +50,8 @@
 
 [LeakCanary 原理](https://github.com/huanggenghg/huanggenghg/blob/main/LeakCanary%20%E5%8E%9F%E7%90%86.md)
 
+[Glide 缓存机制](https://github.com/huanggenghg/huanggenghg/blob/main/Glide%20%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6.md)
+
 ### 架构🏗️
 
 [设计模式](https://github.com/huanggenghg/huanggenghg/blob/main/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F.md)
