@@ -28,6 +28,8 @@
 
 ### Android👾
 
+[RecyclerView 缓存机制](https://github.com/huanggenghg/huanggenghg/blob/main/RecyclerView%20%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6.md)
+
 [ANR 的 触发原理](https://github.com/huanggenghg/huanggenghg/blob/main/ANR%20%E7%9A%84%E8%A7%A6%E5%8F%91%E5%8E%9F%E7%90%86.md)
 
 [包管理机制和 PMS](https://github.com/huanggenghg/huanggenghg/blob/main/%E5%8C%85%E7%AE%A1%E7%90%86%E6%9C%BA%E5%88%B6%E5%92%8C%20PMS.md)
