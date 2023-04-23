@@ -267,3 +267,143 @@ gradle.projectsLoaded {
 
 动态改变 Task 依赖关系：1.寻找插入点；2.动态插入自定义任务。
 
+### 七、AAR 依赖 和 module 源码依赖动态切换
+
+*底层模块改动怎么编译，顶层模块不知道做了改动*
+*git 编译后回退，怎么编译，aar 已更新代码却已回退*
+
+[Android 编译速度优化黑科技 - RocketX](https://juejin.cn/post/7038157787976695815) 摘录
+
+主要问题：
+
+![RocketX](https://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/dc82ac8215584839b96201d342286b77~tplv-k3u1fbpfcp-zoom-in-crop-mark:4536:0:0:0.awebp?)
+
+![RocketX](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/d331dce355d14aeaaad164631375048e~tplv-k3u1fbpfcp-zoom-in-crop-mark:4536:0:0:0.awebp?)
+
+- 如何手动添加 aar 依赖？
+
+  `implement` -> `DynamicAddDependencyMethods$tryInvokeMethod` -> `DirectDependencyAdder$add` -> `DefaultDependencyHandler.this.doAdd`
+
+  ```java
+  public interface Project extends Comparable<Project>, ExtensionAware, PluginAware {
+       ...
+       DependencyHandler getDependencies(); 
+       ...
+  }
+  
+  public Dependency add(String configurationName, Object dependencyNotation) {
+          return this.add(configurationName, dependencyNotation, (Closure)null);
+      }
+  
+      public Dependency add(String configurationName, Object dependencyNotation, Closure configureClosure) {
+         //这里直接调用到了 doAdd 
+          return this.doAdd(this.configurationContainer.getByName(configurationName), dependencyNotation, configureClosure);
+      }
+  ```
+
+   `doAdd` 方法三个参数通过 `debug` 源码发现，`configuration` 就是 `"implementation", "api", "compileOnly"` 这三个字符串生成的对象，`dependencyNotation` 是一个 `LinkHashMap`   有两个键值对，分别是 `name:aarName`, `ext:aar`,最后一个`configureAction` 传 `null` 就可以了，调用  `project.dependencies.add` 最终会调到 `doAdd`  方法，也就是说直接调用 add 即可。
+
+  ```java
+  fun addAarDependencyToProject(aarName: String, configName: String, project: Project) {
+          //添加 aar 依赖 以下代码等同于 api/implementation/xxx (name: 'libaccount-2.0.0', ext: 'aar'),源码使用 linkedMap
+          val map = linkedMapOf<String, String>()
+          map.put("name", aarName)
+          map.put("ext", "aar")
+          project.dependencies.add(configName, map)
+      }
+  ```
+
+  ```java
+  fun flatDirs() {
+          val map = mutableMapOf<String, File>()
+          map.put("dirs", File(getLocalMavenCacheDir()))
+          appProject.rootProject.allprojects {
+              it.repositories.flatDir(map)
+          }
+      }
+  ```
+
+- 哪一个 module 做了修改
+
+  遍历整个项目文件的`lastModifyTime`去做实现、每个文件整个 countTime 对比改动
+
+- module 依赖关系获取
+
+  时机需要在 run 编译 task 之间，确保依赖关系获取后替换能生效，而且要在全局 module 依赖图已生成之后（也就是执行完 build.gradle）：`DependencyResolutionListener`和`projectsEvaluated`。
+
+  但是出现的问题是` beforeResolve` 会回调多次，并且执行完毕每一个` module`的  `build.gradle` 把依赖解析出来则会回调。那么如果在业务层处理一下，等待到最后一个`module` 回调完毕，再通过  `project.configurations` 获取到所有 `module` 的依赖图？答案是可以的，但是 时机已经晚了，等到最后一个` module` 解析完毕之后 回调 `beforeResolve` ，再去修改依赖关系会报以下异常（无法修改依赖关系）；
+
+  换个法子通过`project.gradle.projectsEvaluated {}`回调之后拿到所有 `module` 依赖关系并且去修改。依赖图可以拿到，但是修改依赖关系还是会报异常，时机终究还是晚了。
+
+  ```kotlin
+  //AppProjectDependencies.kt
+      init {
+          val projectsEvaluatedList = hookProjectsEvaluatedAction()
+          project.gradle.projectsEvaluated {
+              //先执行重依赖
+              resolveDenpendency()
+              //后执行移除的监听（主要调整执行顺序，重依赖才能生效和不报错，可能有AGP 版本兼容问题）
+              val clazz = Class.forName("org.gradle.api.invocation.Gradle")
+              val method = clazz.getDeclaredMethod("projectsEvaluated", Action::class.java)
+              val mMethodInvocation = MethodInvocation(method, arrayOf(it))
+              projectsEvaluatedList.forEach {
+                  it.dispatch(mMethodInvocation)
+              }
+  
+          }
+      }
+  
+      //把所有 监听了 projectsEvaluated 的匿名内部类移除
+      fun hookProjectsEvaluatedAction(): List<BroadcastDispatch<BuildListener>> {
+          var removeDispatch = mutableListOf<BroadcastDispatch<BuildListener>>()
+          try {
+              var buildListenerBroadcast: ListenerBroadcast<BuildListener>? = null
+              val fBuildListenerBroadcast =
+                      DefaultGradle::class.java.getDeclaredField("buildListenerBroadcast")
+              fBuildListenerBroadcast.isAccessible = true
+              buildListenerBroadcast =
+                      fBuildListenerBroadcast.get(project.gradle) as? ListenerBroadcast<BuildListener>
+  
+              val fBroadcast = ListenerBroadcast::class.java.getDeclaredField("broadcast")
+              fBroadcast.isAccessible = true
+              val broadcast: BroadcastDispatch<BuildListener>? =
+                      fBroadcast.get(buildListenerBroadcast) as? BroadcastDispatch<BuildListener>
+              val fDispatchers = broadcast?.javaClass?.getDeclaredField("dispatchers")
+              fDispatchers?.isAccessible = true
+              val dispatchers: ArrayList<BroadcastDispatch<BuildListener>>? =
+                      fDispatchers?.get(broadcast) as? ArrayList<BroadcastDispatch<BuildListener>>
+  
+              val clazz =
+                      Class.forName("org.gradle.internal.event.BroadcastDispatch\$ActionInvocationHandler")
+              val iterator = dispatchers?.iterator()
+              iterator?.let {
+                  while (iterator.hasNext()) {
+                      try {
+                          val next = iterator.next()
+                          val fDispatch = next.javaClass.getDeclaredField("dispatch")
+                          fDispatch.isAccessible = true
+                          val dispatch: Any? = fDispatch.get(next)
+                          val fMethodName = clazz.getDeclaredField("methodName")
+                          fMethodName.isAccessible = true
+                          val methodName = fMethodName.get(dispatch) as? String
+                          if (methodName?.contains("projectsEvaluated") == true) {
+                              removeDispatch.add(next)
+                              iterator.remove()
+                          }
+                      } catch (ignore: Exception) {
+                      }
+                  }
+              }
+          } catch (ignore: Exception) {
+          }
+          return removeDispatch
+      }
+  ```
+
+- 如何获取每个`module` 的依赖，依赖就藏在 `Configuration.dependencies`，那么通过`project.configurations.maybeCreate(configName)` 找到所有的 `Configuration` 对象，就能得到每个`module`的 `dependencies`
+
+- module 依赖关系 project 替换成 aar 
+
+- `hook` 编译流程，完成后置换 `loacal maven` 中被修改的 `aar`。需要在 `assembleDebug` 后面补一个 `uploadLocalMavenTask`, 通过 `finalizedBy` 把我们的 `task` 运行起来去同步修改后的 `aar` 。
+
+  
